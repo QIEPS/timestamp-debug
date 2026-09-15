@@ -19,6 +19,12 @@ type VariablesResponse = {
     variables?: DapVariable[];
 };
 
+type PendingVariables = {
+    variablesReference: number;
+    parentPath: string;
+    depth: number;
+};
+
 export type DapClient = {
     request(
         command: string,
@@ -34,17 +40,11 @@ export type TimestampVariableSink = {
     ): void;
 };
 
-export type DapTraversalPolicy = {
-    shouldScanScope(scope: DapScope): boolean;
-    shouldDescend(variable: DapVariable): boolean;
-};
-
 export async function scanDapThread(
     client: DapClient,
     threadId: number,
     sink: TimestampVariableSink,
     limits: ScanLimits,
-    policy: DapTraversalPolicy,
     isActive: () => boolean = () => true
 ): Promise<void> {
     if (!isActive()) {
@@ -90,94 +90,145 @@ export async function scanDapThread(
         }
 
         if (!budget.hasRemainingVariables()) {
-            break;
+            return;
         }
 
-        if (!policy.shouldScanScope(scope)) {
-            continue;
-        }
-
-        await scanVariables(
+        const rootVariables = await scanVariables(
             client,
-            scope.variablesReference,
-            '',
-            0,
+            {
+                variablesReference:
+                    scope.variablesReference,
+                parentPath: '',
+                depth: 0
+            },
             sink,
             visitedVariablesReferences,
             budget,
-            policy,
+            isActive
+        );
+
+        await scanBranches(
+            client,
+            rootVariables.map(variable => [variable]),
+            sink,
+            visitedVariablesReferences,
+            budget,
             isActive
         );
     }
 }
 
-async function scanVariables(
+async function scanBranches(
     client: DapClient,
-    variablesReference: number,
-    parentPath: string,
-    depth: number,
+    branches: PendingVariables[][],
     sink: TimestampVariableSink,
     visitedVariablesReferences: Set<number>,
     budget: ScanBudget,
-    policy: DapTraversalPolicy,
     isActive: () => boolean
 ): Promise<void> {
-    if (!isActive()) {
-        return;
-    }
+    while (
+        branches.length > 0 &&
+        budget.hasRemainingVariables()
+    ) {
+        if (!isActive()) {
+            return;
+        }
 
-    if (variablesReference <= 0) {
-        return;
-    }
+        for (let index = 0; index < branches.length;) {
+            if (!isActive()) {
+                return;
+            }
 
-    if (!budget.canScanDepth(depth)) {
-        return;
-    }
+            if (!budget.hasRemainingVariables()) {
+                return;
+            }
 
-    if (!budget.hasRemainingVariables()) {
-        return;
-    }
+            const branch = branches[index];
+            const pending = branch.shift();
 
+            if (!pending) {
+                branches.splice(index, 1);
+                continue;
+            }
+
+            const children = await scanVariables(
+                client,
+                pending,
+                sink,
+                visitedVariablesReferences,
+                budget,
+                isActive
+            );
+
+            branch.push(...children);
+
+            if (branch.length === 0) {
+                branches.splice(index, 1);
+            } else {
+                index += 1;
+            }
+        }
+    }
+}
+
+async function scanVariables(
+    client: DapClient,
+    pending: PendingVariables,
+    sink: TimestampVariableSink,
+    visitedVariablesReferences: Set<number>,
+    budget: ScanBudget,
+    isActive: () => boolean
+): Promise<PendingVariables[]> {
     if (
+        !isActive() ||
+        pending.variablesReference <= 0 ||
+        !budget.canScanDepth(pending.depth) ||
+        !budget.hasRemainingVariables() ||
         visitedVariablesReferences.has(
-            variablesReference
+            pending.variablesReference
         )
     ) {
-        return;
+        return [];
     }
 
-    visitedVariablesReferences.add(variablesReference);
+    visitedVariablesReferences.add(
+        pending.variablesReference
+    );
 
     let response: VariablesResponse;
 
     try {
         response = await client.request(
             'variables',
-            { variablesReference }
+            {
+                variablesReference:
+                    pending.variablesReference
+            }
         ) as VariablesResponse;
     } catch {
-        return;
+        return [];
     }
 
     if (!isActive()) {
-        return;
+        return [];
     }
 
+    const children: PendingVariables[] = [];
     const variables = budget.limitVariablesAtLevel(
         response.variables ?? []
     );
 
     for (const variable of variables) {
         if (!isActive()) {
-            return;
+            return [];
         }
 
         if (!budget.tryProcessVariable()) {
-            return;
+            break;
         }
 
         const path = joinVariablePath(
-            parentPath,
+            pending.parentPath,
             variable.name
         );
 
@@ -185,23 +236,19 @@ async function scanVariables(
 
         if (
             variable.variablesReference > 0 &&
-            budget.canDescendFrom(depth) &&
-            budget.hasRemainingVariables() &&
-            policy.shouldDescend(variable)
+            budget.canDescendFrom(pending.depth) &&
+            budget.hasRemainingVariables()
         ) {
-            await scanVariables(
-                client,
-                variable.variablesReference,
-                path,
-                depth + 1,
-                sink,
-                visitedVariablesReferences,
-                budget,
-                policy,
-                isActive
-            );
+            children.push({
+                variablesReference:
+                    variable.variablesReference,
+                parentPath: path,
+                depth: pending.depth + 1
+            });
         }
     }
+
+    return children;
 }
 
 export function joinVariablePath(

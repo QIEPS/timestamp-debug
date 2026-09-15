@@ -28,8 +28,8 @@ timeSegments[0].Start
 
 ## Features
 
-- Automatically scans local variables when the debugger stops.
-- Recursively follows nested debugger variables within configurable safety limits.
+- Automatically scans debugger variables when execution stops.
+- Recursively follows nested debugger variables through standard DAP `variablesReference` values and configurable safety limits.
 - Detects timestamp fields using built-in rules, exact custom names and regular expressions.
 - Provides Safe and Aggressive detection modes; Safe is the default.
 - Recognizes Unix timestamps in seconds, milliseconds, microseconds and nanoseconds.
@@ -79,6 +79,20 @@ Strings containing an embedded number are not treated as timestamps.
 | 13 | Milliseconds |
 | 16 | Microseconds |
 | 19 | Nanoseconds |
+
+## How Debugger Traversal Works
+
+Timestamp Debug scans variables automatically when execution stops; debugger variables do not need to be expanded manually first.
+
+The traversal uses standard Debug Adapter Protocol requests:
+
+1. `stackTrace` selects the top stack frame.
+2. `scopes` discovers the variable scopes exposed by the debugger.
+3. `variables` reads each scope and follows every positive `variablesReference` recursively.
+
+Scopes are completed in the order supplied by the debug adapter. Independent root branches are scanned in round-robin order so a wide object, such as a global context, cannot prevent a deeper sibling object from being inspected. Traversal does not use Go, JavaScript, Python or other language-specific type strings to decide whether a variable has children.
+
+Cycles are protected by visited DAP references and the configured depth, per-level and total-variable limits. Some debug adapters assign a new `variablesReference` to each path leading to the same object. In that case the view may contain multiple valid paths such as `data.CreatedAt` and `cycle.parent.CreatedAt`; the safety limits still guarantee that scanning terminates.
 
 ## Settings
 
@@ -164,7 +178,9 @@ No labels or additional text are added to copied values.
 
 ## Debugger Compatibility
 
-The current release is tested for Go debugging with Delve and simple local variables in the built-in JavaScript debugger. Timestamp Debug communicates with debuggers through VS Code Debug Adapter Protocol requests, but full recursive compatibility with other debugger adapters is not yet guaranteed.
+Timestamp Debug uses language-independent Debug Adapter Protocol traversal and does not interpret language-specific type strings when following nested values. Automated DAP fixtures cover Go pointer and map shapes, JavaScript objects and arrays, and Python dictionaries.
+
+Simple local-variable detection has been manually verified with Go through Delve. Recursive objects, arrays and cyclic references have been manually verified with the built-in JavaScript debugger. Live recursive validation with Go and Python debugger adapters is still recommended.
 
 ## Development
 

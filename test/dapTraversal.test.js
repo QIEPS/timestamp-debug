@@ -5,7 +5,13 @@ const {
     scanDapThread
 } = require('../out/dapTraversal');
 
-function createClient(variablesByReference) {
+function createClient(
+    variablesByReference,
+    scopes = [{
+        name: 'Locals',
+        variablesReference: 1
+    }]
+) {
     const variableRequests = [];
 
     return {
@@ -16,18 +22,7 @@ function createClient(variablesByReference) {
             }
 
             if (command === 'scopes') {
-                return {
-                    scopes: [
-                        {
-                            name: 'Locals',
-                            variablesReference: 1
-                        },
-                        {
-                            name: 'Globals',
-                            variablesReference: 9
-                        }
-                    ]
-                };
+                return { scopes };
             }
 
             if (command === 'variables') {
@@ -47,8 +42,18 @@ function createClient(variablesByReference) {
     };
 }
 
-function variable(name, value, variablesReference = 0) {
-    return { name, value, variablesReference };
+function variable(
+    name,
+    value,
+    variablesReference = 0,
+    type
+) {
+    return {
+        name,
+        value,
+        variablesReference,
+        ...(type ? { type } : {})
+    };
 }
 
 const limits = {
@@ -67,41 +72,214 @@ test('traverses standard DAP references and protects against cycles', async () =
         [3, [
             variable('End', '1783024209229'),
             variable('parent', 'Object', 1)
-        ]],
-        [9, [variable('IgnoredAt', '1783024209229')]]
+        ]]
     ]));
-    const candidates = [];
+    const paths = [];
 
     await scanDapThread(
         client,
         7,
-        {
-            add(path, name, value) {
-                candidates.push({ path, name, value });
-            }
-        },
-        limits,
-        {
-            shouldScanScope: scope =>
-                scope.name === 'Locals',
-            shouldDescend: () => true
-        }
+        { add: path => paths.push(path) },
+        limits
     );
 
     assert.deepEqual(client.variableRequests, [1, 2, 3]);
-    assert.deepEqual(
-        candidates.map(candidate => candidate.path),
+    assert.deepEqual(paths, [
+        'segments',
+        'CreatedAt',
+        'segments[0]',
+        'segments[0].End',
+        'segments[0].parent'
+    ]);
+});
+
+test('scans DAP scopes without relying on language-specific names', async () => {
+    const client = createClient(
+        new Map([
+            [1, [variable('CreatedAt', '1783024209229')]],
+            [9, [variable('UpdatedAt', '1783024209229')]]
+        ]),
         [
-            'segments',
-            'segments[0]',
-            'segments[0].End',
-            'segments[0].parent',
-            'CreatedAt'
+            { name: 'Variables', variablesReference: 1 },
+            { name: 'Closure', variablesReference: 9 },
+            { name: 'Unavailable', variablesReference: 0 }
         ]
+    );
+    const paths = [];
+
+    await scanDapThread(
+        client,
+        7,
+        { add: path => paths.push(path) },
+        limits
+    );
+
+    assert.deepEqual(client.variableRequests, [1, 9]);
+    assert.deepEqual(paths, ['CreatedAt', 'UpdatedAt']);
+});
+
+test('finishes an earlier scope before a large later scope consumes the budget', async () => {
+    const client = createClient(
+        new Map([
+            [1, [variable('data', 'Object', 2)]],
+            [2, [variable('CreatedAt', '1783024209229')]],
+            [9, [
+                variable('firstGlobal', 'Object', 10),
+                variable('secondGlobal', 'Object', 11)
+            ]]
+        ]),
+        [
+            { name: 'Variables', variablesReference: 1 },
+            { name: 'Global', variablesReference: 9 }
+        ]
+    );
+    const paths = [];
+
+    await scanDapThread(
+        client,
+        7,
+        { add: path => paths.push(path) },
+        {
+            ...limits,
+            maxTotalVariables: 3
+        }
+    );
+
+    assert.deepEqual(client.variableRequests, [1, 2, 9]);
+    assert.deepEqual(paths, [
+        'data',
+        'data.CreatedAt',
+        'firstGlobal'
+    ]);
+});
+
+test('follows pointer, map and object shapes only by variablesReference', async () => {
+    const client = createClient(new Map([
+        [1, [
+            variable(
+                'goPointer',
+                '*main.Event',
+                2,
+                '*main.Event'
+            ),
+            variable(
+                'goMap',
+                'map[string]int [...]',
+                3,
+                'map[string]int'
+            ),
+            variable(
+                'goTime',
+                'time.Time(...)',
+                4,
+                'time.Time'
+            ),
+            variable('nilReference', 'nil', 5),
+            variable('nodeObject', 'Object', 6, 'Object'),
+            variable('pythonDict', "{'created_at': ...}", 7, 'dict')
+        ]],
+        [2, [variable('CreatedAt', '1783024209229')]],
+        [3, [variable('[created_at]', '1783024209229')]],
+        [4, [variable('UpdatedAt', '1783024209229')]],
+        [5, [variable('End', '1783024209229')]],
+        [6, [variable('items', 'Array(1)', 8)]],
+        [7, [variable("['created_at']", '1783024209229')]],
+        [8, [variable('[0]', 'Object', 9)]],
+        [9, [variable('Timestamp', '1783024209229')]]
+    ]));
+    const paths = [];
+
+    await scanDapThread(
+        client,
+        7,
+        { add: path => paths.push(path) },
+        limits
+    );
+
+    assert.deepEqual(
+        client.variableRequests,
+        [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    );
+    assert.ok(paths.includes('goPointer.CreatedAt'));
+    assert.ok(paths.includes('goMap[created_at]'));
+    assert.ok(paths.includes('goTime.UpdatedAt'));
+    assert.ok(paths.includes('nilReference.End'));
+    assert.ok(paths.includes('nodeObject.items[0].Timestamp'));
+    assert.ok(paths.includes("pythonDict['created_at']"));
+});
+
+test('scans shallow siblings before deeper aliases with new references', async () => {
+    const client = createClient(new Map([
+        [1, [
+            variable('cycle', 'Object', 2),
+            variable('data', 'Object', 3)
+        ]],
+        [2, [variable('parent', 'Object', 4)]],
+        [3, [variable('CreatedAt', '1783024209229')]],
+        [4, [
+            variable('CreatedAt', '1783024209229'),
+            variable('cycle', 'Object', 5)
+        ]],
+        [5, [variable('parent', 'Object', 6)]],
+        [6, [variable('CreatedAt', '1783024209229')]]
+    ]));
+    const paths = [];
+
+    await scanDapThread(
+        client,
+        7,
+        { add: path => paths.push(path) },
+        limits
+    );
+
+    assert.deepEqual(
+        client.variableRequests,
+        [1, 2, 3, 4, 5, 6]
+    );
+    assert.ok(
+        paths.indexOf('data.CreatedAt') <
+        paths.indexOf('cycle.parent.CreatedAt')
     );
 });
 
-test('applies depth and traversal policy before requesting children', async () => {
+test('gives a deep branch time before a wide sibling exhausts the budget', async () => {
+    const client = createClient(new Map([
+        [1, [
+            variable('data', 'Object', 2),
+            variable('wide', 'Object', 9)
+        ]],
+        [2, [variable('items', 'Array(1)', 3)]],
+        [3, [variable('[0]', 'Object', 4)]],
+        [4, [variable('CreatedAt', '1783024209229')]],
+        [9, [
+            variable('first', 'Object', 10),
+            variable('second', 'Object', 11),
+            variable('third', 'Object', 12)
+        ]],
+        [10, [variable('child', 'Object', 20)]],
+        [11, [variable('child', 'Object', 21)]],
+        [12, [variable('child', 'Object', 22)]]
+    ]));
+    const paths = [];
+
+    await scanDapThread(
+        client,
+        7,
+        { add: path => paths.push(path) },
+        {
+            ...limits,
+            maxTotalVariables: 10
+        }
+    );
+
+    assert.ok(paths.includes('data.items[0].CreatedAt'));
+    assert.deepEqual(
+        client.variableRequests.slice(0, 7),
+        [1, 2, 9, 3, 10, 4, 11]
+    );
+});
+
+test('stops requesting children after the configured depth', async () => {
     const client = createClient(new Map([
         [1, [variable('root', 'Object', 2)]],
         [2, [variable('child', 'Object', 3)]],
@@ -112,20 +290,10 @@ test('applies depth and traversal policy before requesting children', async () =
     await scanDapThread(
         client,
         7,
-        {
-            add(path) {
-                paths.push(path);
-            }
-        },
+        { add: path => paths.push(path) },
         {
             ...limits,
             maxScanDepth: 1
-        },
-        {
-            shouldScanScope: scope =>
-                scope.name === 'Locals',
-            shouldDescend: variableValue =>
-                variableValue.name !== 'child'
         }
     );
 
@@ -150,10 +318,6 @@ test('stops exactly at the total variable budget', async () => {
         {
             ...limits,
             maxTotalVariables: 2
-        },
-        {
-            shouldScanScope: () => true,
-            shouldDescend: () => true
         }
     );
 
@@ -194,10 +358,6 @@ test('stops without publishing results after cancellation', async () => {
         7,
         { add: path => paths.push(path) },
         limits,
-        {
-            shouldScanScope: () => true,
-            shouldDescend: () => true
-        },
         () => active
     );
 

@@ -2,6 +2,22 @@
 
 All notable changes to Timestamp Debug will be documented in this file.
 
+## 0.3.0 - 2026-09-15
+
+### Changed
+
+- Replaced debugger-specific traversal filters with recursive traversal based on standard DAP `variablesReference` values.
+- Removed special handling for Go pointer, map and `time.Time` type strings from the traversal core.
+- Traversal now scans debugger scopes exposed through DAP without relying on language-specific scope names.
+- Shallower variables are scanned before deeper references so direct values are not delayed by cyclic or aliased branches.
+- Each DAP scope is completed in adapter order so a large later scope cannot exhaust the scan budget before nested values in an earlier scope.
+- Independent root branches are scanned in round-robin order so a wide object such as a global context cannot starve a deeper sibling branch.
+
+### Tests
+
+- Added traversal fixtures for Go pointer and map shapes, JavaScript objects and arrays, and Python dictionaries.
+- Added coverage for language-independent scope names, changing reference identifiers and fair scan-budget use across scopes and sibling branches while preserving cycle protection, scan limits and cancellation.
+
 ## 0.2.0 - 2026-09-15
 
 ### Added

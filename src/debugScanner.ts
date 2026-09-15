@@ -7,10 +7,6 @@ import type {
     DapClient,
     TimestampVariableSink
 } from './dapTraversal';
-import {
-    isLegacyLocalScope,
-    passesLegacyTraversalPolicy
-} from './legacyTraversalPolicy';
 
 export async function scanStoppedSession(
     session: vscode.DebugSession,
@@ -33,11 +29,6 @@ export async function scanStoppedSession(
             threadId,
             sink,
             limits,
-            {
-                shouldScanScope: isLegacyLocalScope,
-                shouldDescend:
-                    passesLegacyTraversalPolicy
-            },
             isActive
         );
     } catch (error) {
