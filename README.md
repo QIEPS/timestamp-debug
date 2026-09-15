@@ -24,6 +24,8 @@ timeSegments[0].Start
 1783024209229 → 2026-07-02 20:30:09.229 UTC
 ```
 
+![Timestamp Debug showing detected timestamps and copy actions](media/timestamp-variables.png)
+
 ## Features
 
 - Automatically scans local variables when the debugger stops.
@@ -162,7 +164,7 @@ No labels or additional text are added to copied values.
 
 ## Debugger Compatibility
 
-The current release is tested for Go debugging with Delve. Timestamp Debug communicates with the debugger through VS Code Debug Adapter Protocol requests, but compatibility with other debugger adapters is not yet guaranteed.
+The current release is tested for Go debugging with Delve and simple local variables in the built-in JavaScript debugger. Timestamp Debug communicates with debuggers through VS Code Debug Adapter Protocol requests, but full recursive compatibility with other debugger adapters is not yet guaranteed.
 
 ## Development
 

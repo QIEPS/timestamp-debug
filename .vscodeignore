@@ -14,3 +14,7 @@ package-lock.json
 .gitignore
 
 media/icon.svg
+
+AGENTS.md
+TASKS.md
+VERSIONING.md

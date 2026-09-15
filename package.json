@@ -1,8 +1,8 @@
 {
   "name": "timestamp-debug",
   "displayName": "Timestamp Debug",
-  "description": "Shows Unix timestamps as readable dates during debugging",
-  "version": "0.1.1",
+  "description": "Inspect Unix timestamps as readable dates in VS Code debugger variables",
+  "version": "0.2.0",
   "publisher": "qieps",
   "license": "MIT",
   "pricing": "Free",
@@ -19,8 +19,24 @@
     "vscode": "^1.95.0"
   },
   "categories": [
-    "Other"
+    "Debuggers"
   ],
+  "keywords": [
+    "timestamp",
+    "unix",
+    "debugger",
+    "debugging",
+    "datetime",
+    "date",
+    "time",
+    "dap",
+    "go",
+    "delve"
+  ],
+  "galleryBanner": {
+    "color": "#1F1F1F",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onView:timestampDebug.variables"
   ],
@@ -181,6 +197,7 @@
     }
   },
   "scripts": {
+    "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "test": "npm run compile && node --test test/*.test.js",
     "watch": "tsc -watch -p ./"
@@ -188,6 +205,7 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^4.0.0",
     "typescript": "^5.6.0"
   }
 }
