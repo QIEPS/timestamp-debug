@@ -2,6 +2,24 @@ import * as vscode from 'vscode';
 import { convertTimestamp } from './timestamp';
 import { TimestampItem } from './types';
 
+export class TimestampTreeItem extends vscode.TreeItem {
+    constructor(
+        readonly timestamp: TimestampItem
+    ) {
+        super(timestamp.path);
+
+        this.description =
+            `${timestamp.raw} → ${timestamp.date}`;
+
+        this.tooltip =
+            `${timestamp.path}\n` +
+            `${timestamp.raw} → ${timestamp.date}`;
+
+        this.contextValue =
+            'timestampDebug.timestampItem';
+    }
+}
+
 export class TimestampProvider
     implements vscode.TreeDataProvider<vscode.TreeItem> {
 
@@ -50,18 +68,8 @@ export class TimestampProvider
             ];
         }
 
-        return [...this.items.values()].map(item => {
-            const treeItem =
-                new vscode.TreeItem(item.path);
-
-            treeItem.description =
-                `${item.raw} → ${item.date}`;
-
-            treeItem.tooltip =
-                `${item.path}\n` +
-                `${item.raw} → ${item.date}`;
-
-            return treeItem;
-        });
+        return [...this.items.values()].map(
+            item => new TimestampTreeItem(item)
+        );
     }
 }

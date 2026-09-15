@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { DebugController } from './debugController';
 import { TimestampProvider } from './timestampProvider';
+import { registerCopyCommands } from './copyCommands';
 
 let debugController:
     DebugController | undefined;
@@ -17,6 +18,8 @@ export function activate(
             provider
         )
     );
+
+    registerCopyCommands(context);
 
     debugController =
         new DebugController(provider);

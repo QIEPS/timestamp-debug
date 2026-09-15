@@ -18,6 +18,7 @@ Timestamp Debug is a VS Code extension that shows Unix timestamps as readable da
   - nanoseconds
 - Rejects unsupported timestamp lengths and dates outside the supported 2000–2100 range
 - Shows the variable path, original timestamp and readable date in the `Timestamp Variables` panel
+- Copies the raw timestamp, formatted date or variable path from the timestamp context menu
 - Keeps the original debugger value unchanged
 - Supports UTC and local timezone
 - Supports ISO and European date formats
@@ -187,6 +188,16 @@ All scan limits must be positive integers. Missing or invalid values fall back i
 
 Use the refresh button to rescan variables manually.
 
+### Copy Timestamp Values
+
+Right-click a timestamp item in the `Timestamp Variables` view and select one of these actions:
+
+- `Copy Timestamp` copies only the original timestamp value, for example `1783024209229`.
+- `Copy Formatted Date` copies only the displayed date, for example `2026-07-02 20:30:09.229 UTC`.
+- `Copy Variable Path` copies only the debugger path, for example `timeSegments[0].Start`.
+
+No labels or additional text are added to the copied value.
+
 ## Development
 
 Install dependencies, compile the extension and run the tests:
@@ -197,7 +208,7 @@ npm run compile
 npm test
 ```
 
-The tests cover existing built-in field detection, exact custom fields, regex matches, invalid regex handling, scan-limit validation and stopping conditions.
+The tests cover existing built-in field detection, exact custom fields, regex matches, invalid regex handling, scan-limit validation, stopping conditions and copy-value selection.
 
 ## Links
 

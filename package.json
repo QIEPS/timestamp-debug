@@ -104,6 +104,18 @@
         "command": "timestampDebug.refresh",
         "title": "Refresh Timestamp Variables",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "timestampDebug.copyTimestamp",
+        "title": "Copy Timestamp"
+      },
+      {
+        "command": "timestampDebug.copyFormattedDate",
+        "title": "Copy Formatted Date"
+      },
+      {
+        "command": "timestampDebug.copyVariablePath",
+        "title": "Copy Variable Path"
       }
     ],
     "menus": {
@@ -112,6 +124,37 @@
           "command": "timestampDebug.refresh",
           "when": "view == timestampDebug.variables",
           "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "timestampDebug.copyTimestamp",
+          "when": "view == timestampDebug.variables && viewItem == timestampDebug.timestampItem",
+          "group": "1_copy@1"
+        },
+        {
+          "command": "timestampDebug.copyFormattedDate",
+          "when": "view == timestampDebug.variables && viewItem == timestampDebug.timestampItem",
+          "group": "1_copy@2"
+        },
+        {
+          "command": "timestampDebug.copyVariablePath",
+          "when": "view == timestampDebug.variables && viewItem == timestampDebug.timestampItem",
+          "group": "1_copy@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "timestampDebug.copyTimestamp",
+          "when": "false"
+        },
+        {
+          "command": "timestampDebug.copyFormattedDate",
+          "when": "false"
+        },
+        {
+          "command": "timestampDebug.copyVariablePath",
+          "when": "false"
         }
       ]
     }
