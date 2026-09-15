@@ -8,20 +8,40 @@ Timestamp Debug is a VS Code extension that shows Unix timestamps as readable da
 
 ## Features
 
-- Automatically scans local debugger variables
-- Supports nested structs, slices and arrays
-- Detects Unix timestamps in:
+- Automatically scans local variables when the debugger stops
+- Recursively scans nested structs, slices and arrays with cycle and size limits
+- Detects timestamp fields using built-in rules, exact custom names and regex patterns
+- Recognizes Unix timestamps in:
   - seconds
   - milliseconds
   - microseconds
   - nanoseconds
-- Shows readable dates in the `Timestamp Variables` panel
+- Rejects unsupported timestamp lengths and dates outside the supported 2000–2100 range
+- Shows the variable path, original timestamp and readable date in the `Timestamp Variables` panel
+- Keeps the original debugger value unchanged
 - Supports UTC and local timezone
 - Supports ISO and European date formats
-- Supports project-specific timestamp field names and regex patterns
 - Automatically refreshes on breakpoint
+- Automatically refreshes when timestamp detection or date display settings change
+- Clears results when debugging continues or the active debug session ends
 - Manual refresh button
 - Works with Go / Delve debugging
+
+## How Timestamp Variables Are Found
+
+When the debugger stops, Timestamp Debug scans the local variables in the current stack frame and recursively follows nested debugger variables.
+
+Each field name is checked in this order:
+
+1. Built-in timestamp field rules
+2. Exact names from `timestampDebug.customFields`
+3. Regular expressions from `timestampDebug.fieldPatterns`
+
+Built-in rules recognize common names such as `Start`, `End`, `LastStart`, `StartTime`, `EndTime`, `CreatedAt`, `UpdatedAt`, `DeletedAt`, `ActivateAt`, `ExpiresAt`, `ExpiredAt`, `Timestamp` and `DateTime`. Built-in matching is case-insensitive and ignores `_` and `-`. It also recognizes supported suffixes such as `Timestamp`, `DateTime`, `CreatedAt` and `UpdatedAt`.
+
+Custom fields are exact and case-sensitive. Regex patterns are checked only after the built-in and exact custom rules do not match.
+
+After a field name matches, its value is validated. The field is added to the `Timestamp Variables` view only when the value contains a supported 10, 13, 16 or 19-digit Unix timestamp that converts to a date between 2000 and 2100.
 
 ## Installation
 
@@ -127,12 +147,6 @@ Use `timestampDebug.fieldPatterns` to match debugger field names with regular ex
 ```
 
 Patterns use JavaScript regular-expression syntax and are evaluated against the debugger field name. Do not include surrounding `/` characters. Add `^` and `$` when the pattern must match the entire name.
-
-Detection checks field rules in this order:
-
-1. Built-in timestamp field rules
-2. Exact names from `timestampDebug.customFields`
-3. Regular expressions from `timestampDebug.fieldPatterns`
 
 A matching field is displayed only when its value is also a valid supported Unix timestamp. Invalid regular expressions are ignored without disabling built-in rules, custom fields or other valid patterns.
 
