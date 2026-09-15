@@ -45,6 +45,11 @@ export class DebugController {
                             'timestampDebug.dateFormat'
                         );
 
+                    const fixedOffsetChanged =
+                        event.affectsConfiguration(
+                            'timestampDebug.fixedOffset'
+                        );
+
                     const customFieldsChanged =
                         event.affectsConfiguration(
                             'timestampDebug.customFields'
@@ -80,6 +85,7 @@ export class DebugController {
                     if (
                         !timezoneChanged &&
                         !dateFormatChanged &&
+                        !fixedOffsetChanged &&
                         !customFieldsChanged &&
                         !fieldPatternsChanged &&
                         !maxScanDepthChanged &&

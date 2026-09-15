@@ -11,6 +11,9 @@ export type DapVariable = {
     variablesReference: number;
 };
 
-export type TimestampTimezone = 'utc' | 'local';
+export type TimestampTimezone =
+    | 'utc'
+    | 'local'
+    | 'fixed';
 
 export type TimestampDateFormat = 'iso' | 'european';

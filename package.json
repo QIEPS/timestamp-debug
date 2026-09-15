@@ -41,14 +41,22 @@
           "type": "string",
           "enum": [
             "utc",
-            "local"
+            "local",
+            "fixed"
           ],
           "enumDescriptions": [
             "Show timestamps in UTC",
-            "Show timestamps in local system timezone"
+            "Show timestamps in local system timezone",
+            "Show timestamps using timestampDebug.fixedOffset"
           ],
           "default": "utc",
-          "description": "Timezone used for timestamp conversion."
+          "description": "Timezone mode used for timestamp conversion."
+        },
+        "timestampDebug.fixedOffset": {
+          "type": "string",
+          "default": "UTC+00:00",
+          "pattern": "^UTC[+-](?:(?:0\\d|1[0-3]):[0-5]\\d|14:00)$",
+          "description": "Fixed UTC offset used when timezone is fixed. Use UTC±HH:MM from UTC-14:00 to UTC+14:00."
         },
         "timestampDebug.dateFormat": {
           "type": "string",

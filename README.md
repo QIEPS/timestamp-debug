@@ -20,7 +20,7 @@ Timestamp Debug is a VS Code extension that shows Unix timestamps as readable da
 - Shows the variable path, original timestamp and readable date in the `Timestamp Variables` panel
 - Copies the raw timestamp, formatted date or variable path from the timestamp context menu
 - Keeps the original debugger value unchanged
-- Supports UTC and local timezone
+- Supports UTC, local timezone and fixed UTC offsets with minute precision
 - Supports ISO and European date formats
 - Automatically refreshes on breakpoint
 - Automatically refreshes when timestamp detection or date display settings change
@@ -87,12 +87,28 @@ Available values:
 
 * `utc`
 * `local`
+* `fixed`
 
 Default:
 
 ```text
 utc
 ```
+
+### Fixed UTC Offset
+
+Set the timezone mode to `fixed` and configure `timestampDebug.fixedOffset`:
+
+```json
+"timestampDebug.timezone": "fixed",
+"timestampDebug.fixedOffset": "UTC+05:45"
+```
+
+Fixed offsets support positive and negative values with minute precision, for example `UTC+03:00`, `UTC-04:00`, `UTC+05:30` and `UTC+05:45`.
+
+Offsets must use the exact `UTC±HH:MM` format and must be between `UTC-14:00` and `UTC+14:00`. An invalid value falls back to `UTC+00:00`.
+
+The offset changes only the displayed date. The original debugger timestamp remains unchanged. Changing `timezone` or `fixedOffset` automatically refreshes the view while the debugger is stopped.
 
 ### Date Format
 
@@ -208,7 +224,7 @@ npm run compile
 npm test
 ```
 
-The tests cover existing built-in field detection, exact custom fields, regex matches, invalid regex handling, scan-limit validation, stopping conditions and copy-value selection.
+The tests cover existing built-in field detection, exact custom fields, regex matches, invalid regex handling, scan-limit validation, stopping conditions, copy-value selection and fixed-offset formatting.
 
 ## Links
 
