@@ -3,7 +3,10 @@ import {
     joinPath,
     scanStoppedSession
 } from './debugScanner';
-import { isTimestampName } from './timestamp';
+import {
+    isTimestampName,
+    resetTimestampFieldMatcher
+} from './timestamp';
 import { TimestampProvider } from './timestampProvider';
 
 export class DebugController {
@@ -42,9 +45,28 @@ export class DebugController {
                             'timestampDebug.dateFormat'
                         );
 
+                    const customFieldsChanged =
+                        event.affectsConfiguration(
+                            'timestampDebug.customFields'
+                        );
+
+                    const fieldPatternsChanged =
+                        event.affectsConfiguration(
+                            'timestampDebug.fieldPatterns'
+                        );
+
+                    if (
+                        customFieldsChanged ||
+                        fieldPatternsChanged
+                    ) {
+                        resetTimestampFieldMatcher();
+                    }
+
                     if (
                         !timezoneChanged &&
-                        !dateFormatChanged
+                        !dateFormatChanged &&
+                        !customFieldsChanged &&
+                        !fieldPatternsChanged
                     ) {
                         return;
                     }

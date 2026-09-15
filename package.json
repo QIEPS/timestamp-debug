@@ -62,6 +62,22 @@
           ],
           "default": "iso",
           "description": "Format used to display converted timestamps."
+        },
+        "timestampDebug.customFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional debugger field names to treat as timestamps. Names are matched exactly."
+        },
+        "timestampDebug.fieldPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Regular-expression patterns for debugger field names to treat as timestamps. Invalid patterns are ignored."
         }
       }
     },
@@ -84,6 +100,7 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
+    "test": "npm run compile && node --test test/*.test.js",
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {

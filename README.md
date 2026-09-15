@@ -101,6 +101,30 @@ Default:
 iso
 ```
 
+### Custom Timestamp Fields
+
+Use `timestampDebug.customFields` to add exact debugger field names:
+
+```json
+"timestampDebug.customFields": [
+  "BillingDate",
+  "RenewAt"
+]
+```
+
+### Timestamp Field Patterns
+
+Use `timestampDebug.fieldPatterns` to match debugger field names with regular expressions:
+
+```json
+"timestampDebug.fieldPatterns": [
+  ".*At$",
+  ".*Timestamp$"
+]
+```
+
+Invalid regular expressions are ignored. Built-in timestamp field rules continue to apply before custom fields and patterns.
+
 ## Supported Timestamp Formats
 
 | Digits | Unit         |

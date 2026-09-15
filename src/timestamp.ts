@@ -3,47 +3,20 @@ import {
     TimestampDateFormat,
     TimestampTimezone
 } from './types';
+import {
+    createTimestampFieldMatcher,
+    TimestampFieldMatcher
+} from './timestampFieldMatcher';
+
+let configuredFieldMatcher:
+    TimestampFieldMatcher | undefined;
 
 export function isTimestampName(name: string): boolean {
-    const normalized = name
-        .replace(/[_-]/g, '')
-        .toLowerCase();
+    return getConfiguredFieldMatcher()(name);
+}
 
-    const exactNames = [
-        'start',
-        'end',
-        'laststart',
-        'starttime',
-        'endtime',
-        'createdat',
-        'updatedat',
-        'deletedat',
-        'activateat',
-        'expiresat',
-        'expiredat',
-        'timestamp',
-        'datetime'
-    ];
-
-    if (exactNames.includes(normalized)) {
-        return true;
-    }
-
-    const suffixes = [
-        'timestamp',
-        'datetime',
-        'createdat',
-        'updatedat',
-        'deletedat',
-        'starttime',
-        'endtime',
-        'activateat',
-        'expiresat'
-    ];
-
-    return suffixes.some(
-        suffix => normalized.endsWith(suffix)
-    );
+export function resetTimestampFieldMatcher(): void {
+    configuredFieldMatcher = undefined;
 }
 
 export function convertTimestamp(
@@ -171,5 +144,40 @@ function formatDate(date: Date): string {
         `${pad(day)} ` +
         `${time} ` +
         timezoneLabel
+    );
+}
+
+function getConfiguredFieldMatcher(): TimestampFieldMatcher {
+    if (configuredFieldMatcher) {
+        return configuredFieldMatcher;
+    }
+
+    const config = vscode.workspace
+        .getConfiguration('timestampDebug');
+
+    const customFields = readStringArray(
+        config.get<unknown>('customFields', [])
+    );
+
+    const fieldPatterns = readStringArray(
+        config.get<unknown>('fieldPatterns', [])
+    );
+
+    configuredFieldMatcher = createTimestampFieldMatcher(
+        customFields,
+        fieldPatterns
+    );
+
+    return configuredFieldMatcher;
+}
+
+function readStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value.filter(
+        (item): item is string =>
+            typeof item === 'string'
     );
 }
