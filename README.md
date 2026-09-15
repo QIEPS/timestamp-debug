@@ -2,139 +2,141 @@
 
 [![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/qieps.timestamp-debug?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=qieps.timestamp-debug)
 
-[Install from VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=qieps.timestamp-debug)
+Timestamp Debug finds Unix timestamps in debugger variables and shows them as readable dates without changing the original values.
 
-Timestamp Debug is a VS Code extension that shows Unix timestamps as readable dates while debugging.
+## Quick Start
 
-## Features
+1. [Install Timestamp Debug from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=qieps.timestamp-debug).
+2. Start a debugging session and stop on a breakpoint.
+3. Open `Run and Debug`.
+4. Find the `Timestamp Variables` view.
 
-- Automatically scans local variables when the debugger stops
-- Recursively scans nested structs, slices and arrays with configurable depth, per-level and total limits
-- Detects timestamp fields using built-in rules, exact custom names and regex patterns
-- Supports Safe and Aggressive timestamp detection modes
-- Recognizes Unix timestamps in:
-  - seconds
-  - milliseconds
-  - microseconds
-  - nanoseconds
-- Rejects unsupported timestamp lengths and dates outside the supported 2000–2100 range
-- Shows the variable path, original timestamp and readable date in the `Timestamp Variables` panel
-- Copies the raw timestamp, formatted date or variable path from the timestamp context menu
-- Keeps the original debugger value unchanged
-- Supports UTC, local timezone and fixed UTC offsets with minute precision
-- Supports ISO and European date formats
-- Automatically refreshes on breakpoint
-- Automatically refreshes when timestamp detection or date display settings change
-- Clears results when debugging continues or the active debug session ends
-- Manual refresh button
-- Works with Go / Delve debugging
-
-## How Timestamp Variables Are Found
-
-When the debugger stops, Timestamp Debug scans the local variables in the current stack frame and recursively follows nested debugger variables.
-
-### Safe Mode
-
-Safe mode is the default. Each field name is checked in this order:
-
-Each field name is checked in this order:
-
-1. Built-in timestamp field rules
-2. Exact names from `timestampDebug.customFields`
-3. Regular expressions from `timestampDebug.fieldPatterns`
-
-Built-in rules recognize common names such as `Start`, `End`, `LastStart`, `StartTime`, `EndTime`, `CreatedAt`, `UpdatedAt`, `DeletedAt`, `ActivateAt`, `ExpiresAt`, `ExpiredAt`, `Timestamp` and `DateTime`. Built-in matching is case-insensitive and ignores `_` and `-`. It also recognizes supported suffixes such as `Timestamp`, `DateTime`, `CreatedAt` and `UpdatedAt`.
-
-Custom fields are exact and case-sensitive. Regex patterns are checked only after the built-in and exact custom rules do not match.
-
-### Aggressive Mode
-
-Aggressive mode checks compatible numeric values regardless of their field names. It can detect timestamps stored in generic fields such as `value`, but numeric identifiers such as `orderId` can become false positives.
-
-Use Aggressive mode only when broad value-based detection is more important than avoiding false positives.
-
-In both modes, the complete value must be a 10, 13, 16 or 19-digit Unix timestamp after surrounding whitespace is removed. The value must convert to a date between 2000 and 2100. Arbitrary strings containing numeric substrings are not treated as timestamps.
-
-## Installation
-
-Install directly from the Visual Studio Code Marketplace:
-
-**[Timestamp Debug — VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=qieps.timestamp-debug)**
-
-Or search for:
-
-```text
-Timestamp Debug
-````
-
-in the VS Code Extensions view.
-
-## Example
-
-Debugger value:
+For a debugger variable such as:
 
 ```text
 Start = 1783024209229
 ```
 
-Timestamp Debug:
+the view displays:
 
 ```text
 timeSegments[0].Start
 1783024209229 → 2026-07-02 20:30:09.229 UTC
 ```
 
+## Features
+
+- Automatically scans local variables when the debugger stops.
+- Recursively follows nested debugger variables within configurable safety limits.
+- Detects timestamp fields using built-in rules, exact custom names and regular expressions.
+- Provides Safe and Aggressive detection modes; Safe is the default.
+- Recognizes Unix timestamps in seconds, milliseconds, microseconds and nanoseconds.
+- Supports UTC, local time and fixed UTC offsets with minute precision.
+- Supports ISO-style and European date display formats.
+- Shows the complete variable path, original timestamp and formatted date.
+- Copies the timestamp, formatted date or variable path from the item context menu.
+- Refreshes automatically after relevant settings change while the debugger is stopped.
+- Clears results when debugging continues or the active debug session ends.
+- Keeps the original debugger value unchanged.
+
+## How Timestamp Detection Works
+
+### Safe Mode
+
+Safe mode is enabled by default. A value is checked only when its field name matches one of these rules, in this order:
+
+1. Built-in timestamp field rules.
+2. An exact name from `timestampDebug.customFields`.
+3. A regular expression from `timestampDebug.fieldPatterns`.
+
+Built-in rules recognize common names such as `Start`, `End`, `LastStart`, `StartTime`, `EndTime`, `CreatedAt`, `UpdatedAt`, `DeletedAt`, `ActivateAt`, `ExpiresAt`, `ExpiredAt`, `Timestamp` and `DateTime`.
+
+Built-in matching is case-insensitive and ignores `_` and `-`. Custom field names are exact and case-sensitive. Regular expressions are checked only when the built-in and custom rules do not match.
+
+### Aggressive Mode
+
+Aggressive mode checks compatible numeric values regardless of their field names. This can find timestamps stored in generic fields such as `value`, but it may also interpret numeric identifiers such as `orderId` as timestamps.
+
+Use Aggressive mode only when broader detection is more important than avoiding false positives.
+
+### Value Validation
+
+In both modes, the complete value must:
+
+- contain only an optional minus sign followed by digits;
+- have exactly 10, 13, 16 or 19 digits;
+- convert to a date between the years 2000 and 2100.
+
+Strings containing an embedded number are not treated as timestamps.
+
+## Supported Unix Timestamp Units
+
+| Digits | Unit |
+| ---: | --- |
+| 10 | Seconds |
+| 13 | Milliseconds |
+| 16 | Microseconds |
+| 19 | Nanoseconds |
+
 ## Settings
 
-### Timezone
+| Setting | Default | Description |
+| --- | --- | --- |
+| `timestampDebug.timezone` | `utc` | Display timezone: `utc`, `local` or `fixed`. |
+| `timestampDebug.fixedOffset` | `UTC+00:00` | Offset used when `timezone` is `fixed`. |
+| `timestampDebug.dateFormat` | `iso` | Date format: `iso` or `european`. |
+| `timestampDebug.detectionMode` | `safe` | Detection mode: `safe` or `aggressive`. |
+| `timestampDebug.customFields` | `[]` | Additional exact, case-sensitive field names. |
+| `timestampDebug.fieldPatterns` | `[]` | JavaScript regular expressions for field names. |
+| `timestampDebug.maxScanDepth` | `4` | Maximum recursive depth; top-level variables are at depth `0`. |
+| `timestampDebug.maxVariablesPerLevel` | `100` | Maximum variables processed at one level. |
+| `timestampDebug.maxTotalVariables` | `1000` | Maximum variables processed during one scan. |
 
-Setting:
-
-```text
-timestampDebug.timezone
-```
-
-Available values:
-
-* `utc`
-* `local`
-* `fixed`
-
-Default:
-
-```text
-utc
-```
-
-### Fixed UTC Offset
-
-Set the timezone mode to `fixed` and configure `timestampDebug.fixedOffset`:
+Example `settings.json` configuration:
 
 ```json
-"timestampDebug.timezone": "fixed",
-"timestampDebug.fixedOffset": "UTC+05:45"
+{
+  "timestampDebug.timezone": "fixed",
+  "timestampDebug.fixedOffset": "UTC+05:45",
+  "timestampDebug.dateFormat": "european",
+  "timestampDebug.detectionMode": "safe",
+  "timestampDebug.customFields": [
+    "BillingDate",
+    "RenewAt"
+  ],
+  "timestampDebug.fieldPatterns": [
+    ".*Timestamp$"
+  ],
+  "timestampDebug.maxScanDepth": 4,
+  "timestampDebug.maxVariablesPerLevel": 100,
+  "timestampDebug.maxTotalVariables": 1000
+}
 ```
 
-Fixed offsets support positive and negative values with minute precision, for example `UTC+03:00`, `UTC-04:00`, `UTC+05:30` and `UTC+05:45`.
+### Custom Fields and Patterns
 
-Offsets must use the exact `UTC±HH:MM` format and must be between `UTC-14:00` and `UTC+14:00`. An invalid value falls back to `UTC+00:00`.
+`timestampDebug.customFields` matches the complete field name exactly. For example, `BillingDate` does not match `billingdate` or `BillingDateValue`.
 
-The offset changes only the displayed date. The original debugger timestamp remains unchanged. Changing `timezone` or `fixedOffset` automatically refreshes the view while the debugger is stopped.
+`timestampDebug.fieldPatterns` uses JavaScript regular-expression syntax. Do not include surrounding `/` characters. Use `^` and `$` when a pattern must match the complete field name. Invalid expressions are ignored without disabling other detection rules.
 
-### Date Format
+A matching name is displayed only when its value is also a valid supported Unix timestamp.
 
-Setting:
+### Fixed UTC Offsets
+
+Fixed offsets must use the exact `UTC±HH:MM` format and be between `UTC-14:00` and `UTC+14:00`.
+
+Supported examples include:
 
 ```text
-timestampDebug.dateFormat
+UTC+03:00
+UTC-04:00
+UTC+05:30
+UTC+05:45
 ```
 
-Available values:
+An invalid offset falls back to `UTC+00:00`. The offset affects only the displayed date.
 
-* `iso`
-* `european`
-
-Examples:
+### Date Formats
 
 ```text
 ISO:
@@ -144,107 +146,23 @@ European:
 02.07.2026 20:30:09.229 UTC
 ```
 
-Default:
+All supported setting changes automatically refresh the view while the debugger is stopped.
 
-```text
-iso
-```
+## Timestamp Variables View
 
-### Custom Timestamp Fields
+Use the refresh button in the view title to scan the current stopped frame again.
 
-Use `timestampDebug.customFields` to add exact debugger field names:
+Right-click a timestamp item to access:
 
-```json
-"timestampDebug.customFields": [
-  "BillingDate",
-  "RenewAt"
-]
-```
+- `Copy Timestamp` — copies only the original numeric value.
+- `Copy Formatted Date` — copies only the displayed date.
+- `Copy Variable Path` — copies only the debugger variable path.
 
-Custom field names are case-sensitive and must match the complete debugger field name. For example, `BillingDate` does not match `billingdate` or `BillingDateValue`.
+No labels or additional text are added to copied values.
 
-### Timestamp Field Patterns
+## Debugger Compatibility
 
-Use `timestampDebug.fieldPatterns` to match debugger field names with regular expressions:
-
-```json
-"timestampDebug.fieldPatterns": [
-  ".*At$",
-  ".*Timestamp$"
-]
-```
-
-Patterns use JavaScript regular-expression syntax and are evaluated against the debugger field name. Do not include surrounding `/` characters. Add `^` and `$` when the pattern must match the entire name.
-
-A matching field is displayed only when its value is also a valid supported Unix timestamp. Invalid regular expressions are ignored without disabling built-in rules, custom fields or other valid patterns.
-
-Changing `customFields` or `fieldPatterns` automatically refreshes the `Timestamp Variables` view while the debugger is stopped. A manual refresh is not required.
-
-### Detection Mode
-
-Setting:
-
-```text
-timestampDebug.detectionMode
-```
-
-Available values:
-
-- `safe` — requires the field name to match a built-in rule, `customFields` or `fieldPatterns`.
-- `aggressive` — checks every compatible numeric value regardless of its field name.
-
-Default:
-
-```text
-safe
-```
-
-Aggressive mode may display numeric IDs and other unrelated values as timestamps. Changing the detection mode automatically refreshes the view while the debugger is stopped.
-
-### Scan Limits
-
-Use these settings to control recursive scanning of large debugger object graphs:
-
-```json
-"timestampDebug.maxScanDepth": 4,
-"timestampDebug.maxVariablesPerLevel": 100,
-"timestampDebug.maxTotalVariables": 1000
-```
-
-- `maxScanDepth` is the maximum recursive depth below a debugger scope. Top-level local variables are at depth `0`.
-- `maxVariablesPerLevel` limits how many variables are processed from one debugger level.
-- `maxTotalVariables` limits the total number of variables processed across the entire scan.
-
-All scan limits must be positive integers. Missing or invalid values fall back individually to the safe defaults shown above. Changing a scan limit automatically refreshes the view while the debugger is stopped.
-
-## Supported Timestamp Formats
-
-| Digits | Unit         |
-| ------ | ------------ |
-| 10     | Seconds      |
-| 13     | Milliseconds |
-| 16     | Microseconds |
-| 19     | Nanoseconds  |
-
-## Usage
-
-1. Start a debugging session.
-2. Stop on a breakpoint.
-3. Open `Run and Debug`.
-4. Find `Timestamp Variables`.
-5. Timestamps are detected automatically.
-
-Use the refresh button to rescan variables manually.
-
-### Copy Timestamp Values
-
-Right-click a timestamp item in the `Timestamp Variables` view and select one of these actions:
-
-- `Copy Timestamp` copies only the original timestamp value, for example `1783024209229`.
-- `Copy Formatted Date` copies only the displayed date, for example `2026-07-02 20:30:09.229 UTC`.
-- `Copy Variable Path` copies only the debugger path, for example `timeSegments[0].Start`.
-
-No labels or additional text are added to the copied value.
+The current release is tested for Go debugging with Delve. Timestamp Debug communicates with the debugger through VS Code Debug Adapter Protocol requests, but compatibility with other debugger adapters is not yet guaranteed.
 
 ## Development
 
@@ -256,10 +174,8 @@ npm run compile
 npm test
 ```
 
-The tests cover built-in and configured field detection, Safe and Aggressive modes, supported timestamp units, invalid values, scan limits, copy-value selection and timezone formatting.
-
 ## Links
 
-* [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=qieps.timestamp-debug)
-* [GitHub Repository](https://github.com/QIEPS/timestamp-debug)
-* [Issues](https://github.com/QIEPS/timestamp-debug/issues)
+- [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=qieps.timestamp-debug)
+- [GitHub Repository](https://github.com/QIEPS/timestamp-debug)
+- [Issues](https://github.com/QIEPS/timestamp-debug/issues)

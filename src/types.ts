@@ -11,6 +11,11 @@ export type DapVariable = {
     variablesReference: number;
 };
 
+export type DapScope = {
+    name: string;
+    variablesReference: number;
+};
+
 export type TimestampTimezone =
     | 'utc'
     | 'local'

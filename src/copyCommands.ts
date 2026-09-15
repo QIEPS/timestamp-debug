@@ -3,7 +3,9 @@ import {
     TimestampTreeItem
 } from './timestampProvider';
 import {
-    getTimestampCopyValue,
+    getTimestampCopyValue
+} from './timestampCopy';
+import type {
     TimestampCopyTarget
 } from './timestampCopy';
 

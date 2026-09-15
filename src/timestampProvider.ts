@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { convertTimestamp } from './timestamp';
-import { TimestampItem } from './types';
+import { TimestampConverter } from './timestamp';
+import type { TimestampItem } from './types';
 
 export class TimestampTreeItem extends vscode.TreeItem {
     constructor(
@@ -21,7 +21,8 @@ export class TimestampTreeItem extends vscode.TreeItem {
 }
 
 export class TimestampProvider
-    implements vscode.TreeDataProvider<vscode.TreeItem> {
+    implements vscode.TreeDataProvider<vscode.TreeItem>,
+    vscode.Disposable {
 
     private readonly emitter =
         new vscode.EventEmitter<void>();
@@ -31,6 +32,14 @@ export class TimestampProvider
 
     private readonly items =
         new Map<string, TimestampItem>();
+
+    constructor(
+        private converter: TimestampConverter
+    ) {}
+
+    setConverter(converter: TimestampConverter): void {
+        this.converter = converter;
+    }
 
     clear(): void {
         this.items.clear();
@@ -42,7 +51,7 @@ export class TimestampProvider
         name: string,
         value: string
     ): void {
-        const converted = convertTimestamp(
+        const converted = this.converter.convert(
             name,
             value
         );
@@ -51,13 +60,29 @@ export class TimestampProvider
             return;
         }
 
-        this.items.set(path, {
+        const item = {
             path,
             raw: converted.raw,
             date: converted.date
-        });
+        };
+
+        const current = this.items.get(path);
+
+        if (
+            current?.raw === item.raw &&
+            current.date === item.date
+        ) {
+            return;
+        }
+
+        this.items.set(path, item);
 
         this.emitter.fire();
+    }
+
+    dispose(): void {
+        this.items.clear();
+        this.emitter.dispose();
     }
 
     getTreeItem(

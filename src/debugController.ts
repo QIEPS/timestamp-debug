@@ -1,22 +1,48 @@
 import * as vscode from 'vscode';
+import type {
+    TimestampDebugConfiguration
+} from './configuration';
 import {
-    joinPath,
+    DebugTrackerState,
+    getScopesResponse,
+    getStoppedThreadId,
+    getVariablesRequest,
+    getVariablesResponse,
+    isContinuedEvent,
+    isStoppedEvent
+} from './debugTracker';
+import type {
+    DapVariablesResponse
+} from './debugTracker';
+import {
     scanStoppedSession
 } from './debugScanner';
-import {
-    resetTimestampDetectionConfiguration
-} from './timestamp';
+import type {
+    TimestampVariableSink
+} from './dapTraversal';
+import { TimestampConverter } from './timestamp';
 import { TimestampProvider } from './timestampProvider';
+import {
+    affectsTimestampDebugConfiguration,
+    readTimestampDebugConfiguration
+} from './workspaceConfiguration';
 
-export class DebugController {
+export class DebugController implements vscode.Disposable {
     private currentSession:
         vscode.DebugSession | undefined;
 
     private currentThreadId:
         number | undefined;
 
+    private scanRevision = 0;
+
+    private pendingScan:
+        ReturnType<typeof setTimeout> | undefined;
+
     constructor(
-        private readonly provider: TimestampProvider
+        private readonly provider: TimestampProvider,
+        private configuration:
+        TimestampDebugConfiguration
     ) {}
 
     register(
@@ -34,72 +60,22 @@ export class DebugController {
         context.subscriptions.push(
             vscode.workspace.onDidChangeConfiguration(
                 event => {
-                    const timezoneChanged =
-                        event.affectsConfiguration(
-                            'timestampDebug.timezone'
-                        );
-
-                    const dateFormatChanged =
-                        event.affectsConfiguration(
-                            'timestampDebug.dateFormat'
-                        );
-
-                    const fixedOffsetChanged =
-                        event.affectsConfiguration(
-                            'timestampDebug.fixedOffset'
-                        );
-
-                    const detectionModeChanged =
-                        event.affectsConfiguration(
-                            'timestampDebug.detectionMode'
-                        );
-
-                    const customFieldsChanged =
-                        event.affectsConfiguration(
-                            'timestampDebug.customFields'
-                        );
-
-                    const fieldPatternsChanged =
-                        event.affectsConfiguration(
-                            'timestampDebug.fieldPatterns'
-                        );
-
-                    const maxScanDepthChanged =
-                        event.affectsConfiguration(
-                            'timestampDebug.maxScanDepth'
-                        );
-
-                    const maxVariablesPerLevelChanged =
-                        event.affectsConfiguration(
-                            'timestampDebug.maxVariablesPerLevel'
-                        );
-
-                    const maxTotalVariablesChanged =
-                        event.affectsConfiguration(
-                            'timestampDebug.maxTotalVariables'
-                        );
-
                     if (
-                        customFieldsChanged ||
-                        fieldPatternsChanged ||
-                        detectionModeChanged
-                    ) {
-                        resetTimestampDetectionConfiguration();
-                    }
-
-                    if (
-                        !timezoneChanged &&
-                        !dateFormatChanged &&
-                        !fixedOffsetChanged &&
-                        !detectionModeChanged &&
-                        !customFieldsChanged &&
-                        !fieldPatternsChanged &&
-                        !maxScanDepthChanged &&
-                        !maxVariablesPerLevelChanged &&
-                        !maxTotalVariablesChanged
+                        !affectsTimestampDebugConfiguration(
+                            event
+                        )
                     ) {
                         return;
                     }
+
+                    this.configuration =
+                        readTimestampDebugConfiguration();
+
+                    this.provider.setConverter(
+                        new TimestampConverter(
+                            this.configuration
+                        )
+                    );
 
                     void this.refresh();
                 }
@@ -116,9 +92,9 @@ export class DebugController {
                         return;
                     }
 
+                    this.invalidateScan();
                     this.currentSession = undefined;
                     this.currentThreadId = undefined;
-
                     this.provider.clear();
                 }
             )
@@ -136,96 +112,81 @@ export class DebugController {
     }
 
     dispose(): void {
+        this.invalidateScan();
         this.currentSession = undefined;
         this.currentThreadId = undefined;
     }
 
     private async refresh(): Promise<void> {
-        if (
-            !this.currentSession ||
-            !this.currentThreadId
-        ) {
+        const session = this.currentSession;
+        const threadId = this.currentThreadId;
+
+        if (!session || threadId === undefined) {
             return;
         }
 
+        const revision = this.invalidateScan();
         this.provider.clear();
 
-        await scanStoppedSession(
-            this.currentSession,
-            this.currentThreadId,
-            this.provider
+        await this.scan(
+            session,
+            threadId,
+            revision,
+            this.configuration
         );
     }
 
     private createTracker(
         session: vscode.DebugSession
     ): vscode.DebugAdapterTracker {
-        const paths =
-            new Map<number, string>();
-
-        const variableRequests =
-            new Map<number, number>();
+        const state = new DebugTrackerState();
 
         return {
-            onWillReceiveMessage: (message: any) => {
-                if (
-                    message.type === 'request' &&
-                    message.command === 'variables'
-                ) {
-                    variableRequests.set(
-                        message.seq,
-                        message.arguments
-                            ?.variablesReference
-                    );
+            onWillReceiveMessage: (message: unknown) => {
+                const request =
+                    getVariablesRequest(message);
+
+                if (!request) {
+                    return;
                 }
+
+                state.recordVariablesRequest(
+                    request,
+                    this.scanRevision
+                );
             },
 
-            onDidSendMessage: (message: any) => {
-                if (
-                    message.type === 'event' &&
-                    message.event === 'stopped'
-                ) {
+            onDidSendMessage: (message: unknown) => {
+                if (isStoppedEvent(message)) {
                     this.handleStopped(
                         session,
-                        message,
-                        paths,
-                        variableRequests
+                        getStoppedThreadId(message),
+                        state
                     );
 
                     return;
                 }
 
-                if (
-                    message.type === 'event' &&
-                    message.event === 'continued'
-                ) {
-                    this.provider.clear();
-                    this.currentThreadId =
-                        undefined;
-
+                if (isContinuedEvent(message)) {
+                    this.handleContinued(session, state);
                     return;
                 }
 
-                if (
-                    message.type === 'response' &&
-                    message.command === 'scopes'
-                ) {
-                    this.captureScopes(
-                        message,
-                        paths
-                    );
+                const scopes = getScopesResponse(message);
 
+                if (scopes) {
+                    state.captureScopes(scopes);
                     return;
                 }
 
-                if (
-                    message.type === 'response' &&
-                    message.command === 'variables'
-                ) {
+                const variables =
+                    getVariablesResponse(message);
+
+                if (variables) {
                     this.captureVariables(
-                        message,
-                        paths,
-                        variableRequests
+                        session,
+                        variables,
+                        state
                     );
                 }
             }
@@ -234,96 +195,129 @@ export class DebugController {
 
     private handleStopped(
         session: vscode.DebugSession,
-        message: any,
-        paths: Map<number, string>,
-        variableRequests: Map<number, number>
+        threadId: number | undefined,
+        state: DebugTrackerState
     ): void {
+        const revision = this.invalidateScan();
+
         this.provider.clear();
-        paths.clear();
-        variableRequests.clear();
+        state.clear();
 
-        const threadId =
-            message.body?.threadId;
-
-        if (!threadId) {
+        if (threadId === undefined) {
+            this.currentSession = undefined;
+            this.currentThreadId = undefined;
             return;
         }
 
         this.currentSession = session;
         this.currentThreadId = threadId;
 
-        setTimeout(() => {
-            void scanStoppedSession(
+        const configuration = this.configuration;
+
+        this.pendingScan = setTimeout(() => {
+            this.pendingScan = undefined;
+
+            void this.scan(
                 session,
                 threadId,
-                this.provider
+                revision,
+                configuration
             );
         }, 150);
     }
 
-    private captureScopes(
-        message: any,
-        paths: Map<number, string>
+    private handleContinued(
+        session: vscode.DebugSession,
+        state: DebugTrackerState
     ): void {
-        for (
-            const scope of
-            message.body?.scopes ?? []
-        ) {
-            if (!scope.variablesReference) {
-                continue;
-            }
+        state.clear();
 
-            paths.set(
-                scope.variablesReference,
-                ''
+        if (this.currentSession?.id !== session.id) {
+            return;
+        }
+
+        this.invalidateScan();
+        this.currentThreadId = undefined;
+        this.provider.clear();
+    }
+
+    private captureVariables(
+        session: vscode.DebugSession,
+        response: DapVariablesResponse,
+        state: DebugTrackerState
+    ): void {
+        const candidates = state.consumeVariablesResponse(
+            response,
+            this.scanRevision
+        );
+
+        if (
+            this.currentSession?.id !== session.id ||
+            this.currentThreadId === undefined
+        ) {
+            return;
+        }
+
+        for (const candidate of candidates) {
+            this.provider.add(
+                candidate.path,
+                candidate.name,
+                candidate.value
             );
         }
     }
 
-    private captureVariables(
-        message: any,
-        paths: Map<number, string>,
-        variableRequests: Map<number, number>
-    ): void {
-        const parentReference =
-            variableRequests.get(
-                message.request_seq
-            );
-
-        if (parentReference === undefined) {
-            return;
-        }
-
-        variableRequests.delete(
-            message.request_seq
-        );
-
-        const parentPath =
-            paths.get(parentReference) ?? '';
-
-        for (
-            const variable of
-            message.body?.variables ?? []
-        ) {
-            const path = joinPath(
-                parentPath,
-                variable.name
-            );
-
-            if (
-                variable.variablesReference > 0
-            ) {
-                paths.set(
-                    variable.variablesReference,
-                    path
-                );
+    private async scan(
+        session: vscode.DebugSession,
+        threadId: number,
+        revision: number,
+        configuration: TimestampDebugConfiguration
+    ): Promise<void> {
+        const sink: TimestampVariableSink = {
+            add: (path, name, value) => {
+                if (
+                    this.isCurrentScan(
+                        session,
+                        threadId,
+                        revision
+                    )
+                ) {
+                    this.provider.add(path, name, value);
+                }
             }
+        };
 
-            this.provider.add(
-                path,
-                variable.name,
-                variable.value
-            );
+        await scanStoppedSession(
+            session,
+            threadId,
+            sink,
+            configuration.scanLimits,
+            () => this.isCurrentScan(
+                session,
+                threadId,
+                revision
+            )
+        );
+    }
+
+    private isCurrentScan(
+        session: vscode.DebugSession,
+        threadId: number,
+        revision: number
+    ): boolean {
+        return revision === this.scanRevision &&
+            session.id === this.currentSession?.id &&
+            threadId === this.currentThreadId;
+    }
+
+    private invalidateScan(): number {
+        this.scanRevision += 1;
+
+        if (this.pendingScan) {
+            clearTimeout(this.pendingScan);
+            this.pendingScan = undefined;
         }
+
+        return this.scanRevision;
     }
 }

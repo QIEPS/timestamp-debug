@@ -1,130 +1,71 @@
-import * as vscode from 'vscode';
+import type {
+    TimestampDebugConfiguration
+} from './configuration';
 import {
-    TimestampDateFormat,
-    TimestampDetectionMode,
-    TimestampTimezone
-} from './types';
+    detectTimestampValue
+} from './timestampDetection';
 import {
-    createTimestampFieldMatcher,
+    createTimestampFieldMatcher
+} from './timestampFieldMatcher';
+import type {
     TimestampFieldMatcher
 } from './timestampFieldMatcher';
 import {
-    DEFAULT_FIXED_OFFSET,
     formatTimestampDate
 } from './timestampFormatter';
-import {
-    detectTimestampValue,
-    resolveDetectionMode
-} from './timestampDetection';
 
-let configuredFieldMatcher:
-    TimestampFieldMatcher | undefined;
+export type ConvertedTimestamp = {
+    raw: string;
+    date: string;
+};
 
-let configuredDetectionMode:
-    TimestampDetectionMode | undefined;
+export class TimestampConverter {
+    private readonly matchesTimestampField:
+        TimestampFieldMatcher;
 
-export function isTimestampName(name: string): boolean {
-    return getConfiguredFieldMatcher()(name);
-}
-
-export function resetTimestampDetectionConfiguration(): void {
-    configuredFieldMatcher = undefined;
-    configuredDetectionMode = undefined;
-}
-
-export function convertTimestamp(
-    name: string,
-    value: string
-): { raw: string; date: string } | undefined {
-    const parsed = detectTimestampValue(
-        name,
-        value,
-        getConfiguredDetectionMode(),
-        getConfiguredFieldMatcher()
-    );
-
-    if (!parsed) {
-        return undefined;
+    constructor(
+        private readonly configuration:
+        TimestampDebugConfiguration
+    ) {
+        this.matchesTimestampField =
+            createTimestampFieldMatcher(
+                configuration.customFields,
+                configuration.fieldPatterns
+            );
     }
 
-    return {
-        raw: parsed.raw,
-        date: formatDate(parsed.date)
-    };
-}
-
-function formatDate(date: Date): string {
-    const config = vscode.workspace
-        .getConfiguration('timestampDebug');
-
-    const timezone = config.get<TimestampTimezone>(
-        'timezone',
-        'utc'
-    );
-
-    const dateFormat = config.get<TimestampDateFormat>(
-        'dateFormat',
-        'iso'
-    );
-
-    const fixedOffset = config.get<unknown>(
-        'fixedOffset',
-        DEFAULT_FIXED_OFFSET
-    );
-
-    return formatTimestampDate(date, {
-        timezone,
-        dateFormat,
-        fixedOffset
-    });
-}
-
-function getConfiguredFieldMatcher(): TimestampFieldMatcher {
-    if (configuredFieldMatcher) {
-        return configuredFieldMatcher;
+    isTimestampName(name: string): boolean {
+        return this.matchesTimestampField(name);
     }
 
-    const config = vscode.workspace
-        .getConfiguration('timestampDebug');
+    convert(
+        name: string,
+        value: string
+    ): ConvertedTimestamp | undefined {
+        const parsed = detectTimestampValue(
+            name,
+            value,
+            this.configuration.detectionMode,
+            this.matchesTimestampField
+        );
 
-    const customFields = readStringArray(
-        config.get<unknown>('customFields', [])
-    );
+        if (!parsed) {
+            return undefined;
+        }
 
-    const fieldPatterns = readStringArray(
-        config.get<unknown>('fieldPatterns', [])
-    );
-
-    configuredFieldMatcher = createTimestampFieldMatcher(
-        customFields,
-        fieldPatterns
-    );
-
-    return configuredFieldMatcher;
-}
-
-function getConfiguredDetectionMode(): TimestampDetectionMode {
-    if (configuredDetectionMode) {
-        return configuredDetectionMode;
+        return {
+            raw: parsed.raw,
+            date: formatTimestampDate(
+                parsed.date,
+                {
+                    timezone:
+                        this.configuration.timezone,
+                    dateFormat:
+                        this.configuration.dateFormat,
+                    fixedOffset:
+                        this.configuration.fixedOffset
+                }
+            )
+        };
     }
-
-    const config = vscode.workspace
-        .getConfiguration('timestampDebug');
-
-    configuredDetectionMode = resolveDetectionMode(
-        config.get<unknown>('detectionMode', 'safe')
-    );
-
-    return configuredDetectionMode;
-}
-
-function readStringArray(value: unknown): string[] {
-    if (!Array.isArray(value)) {
-        return [];
-    }
-
-    return value.filter(
-        (item): item is string =>
-            typeof item === 'string'
-    );
 }
