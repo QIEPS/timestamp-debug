@@ -2,10 +2,18 @@
   "name": "timestamp-debug",
   "displayName": "Timestamp Debug",
   "description": "Shows Unix timestamps as readable dates during debugging",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "local",
   "license": "MIT",
   "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/QIEPS/timestamp-debug.git"
+  },
+  "homepage": "https://github.com/QIEPS/timestamp-debug#readme",
+  "bugs": {
+    "url": "https://github.com/QIEPS/timestamp-debug/issues"
+  },
   "engines": {
     "vscode": "^1.95.0"
   },
