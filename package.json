@@ -58,6 +58,19 @@
           "pattern": "^UTC[+-](?:(?:0\\d|1[0-3]):[0-5]\\d|14:00)$",
           "description": "Fixed UTC offset used when timezone is fixed. Use UTC±HH:MM from UTC-14:00 to UTC+14:00."
         },
+        "timestampDebug.detectionMode": {
+          "type": "string",
+          "enum": [
+            "safe",
+            "aggressive"
+          ],
+          "enumDescriptions": [
+            "Detect valid timestamps only in fields matched by built-in or configured field rules",
+            "Detect any valid timestamp-shaped numeric value regardless of field name; may produce false positives"
+          ],
+          "default": "safe",
+          "description": "Controls whether timestamp detection requires a matching field name."
+        },
         "timestampDebug.dateFormat": {
           "type": "string",
           "enum": [

@@ -4,8 +4,7 @@ import {
     scanStoppedSession
 } from './debugScanner';
 import {
-    isTimestampName,
-    resetTimestampFieldMatcher
+    resetTimestampDetectionConfiguration
 } from './timestamp';
 import { TimestampProvider } from './timestampProvider';
 
@@ -50,6 +49,11 @@ export class DebugController {
                             'timestampDebug.fixedOffset'
                         );
 
+                    const detectionModeChanged =
+                        event.affectsConfiguration(
+                            'timestampDebug.detectionMode'
+                        );
+
                     const customFieldsChanged =
                         event.affectsConfiguration(
                             'timestampDebug.customFields'
@@ -77,15 +81,17 @@ export class DebugController {
 
                     if (
                         customFieldsChanged ||
-                        fieldPatternsChanged
+                        fieldPatternsChanged ||
+                        detectionModeChanged
                     ) {
-                        resetTimestampFieldMatcher();
+                        resetTimestampDetectionConfiguration();
                     }
 
                     if (
                         !timezoneChanged &&
                         !dateFormatChanged &&
                         !fixedOffsetChanged &&
+                        !detectionModeChanged &&
                         !customFieldsChanged &&
                         !fieldPatternsChanged &&
                         !maxScanDepthChanged &&
@@ -313,14 +319,11 @@ export class DebugController {
                 );
             }
 
-            if (
-                isTimestampName(variable.name)
-            ) {
-                this.provider.add(
-                    path,
-                    variable.value
-                );
-            }
+            this.provider.add(
+                path,
+                variable.name,
+                variable.value
+            );
         }
     }
 }

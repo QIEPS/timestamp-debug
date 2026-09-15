@@ -17,3 +17,7 @@ export type TimestampTimezone =
     | 'fixed';
 
 export type TimestampDateFormat = 'iso' | 'european';
+
+export type TimestampDetectionMode =
+    | 'safe'
+    | 'aggressive';

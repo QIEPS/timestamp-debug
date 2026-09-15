@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { TimestampProvider } from './timestampProvider';
-import { isTimestampName } from './timestamp';
 import { DapVariable } from './types';
 import {
     resolveScanLimits,
@@ -122,12 +121,11 @@ async function scanVariables(
             variable.name
         );
 
-        if (isTimestampName(variable.name)) {
-            provider.add(
-                path,
-                variable.value
-            );
-        }
+        provider.add(
+            path,
+            variable.name,
+            variable.value
+        );
 
         if (
             variable.variablesReference > 0 &&

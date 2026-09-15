@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import {
     TimestampDateFormat,
+    TimestampDetectionMode,
     TimestampTimezone
 } from './types';
 import {
@@ -11,71 +12,45 @@ import {
     DEFAULT_FIXED_OFFSET,
     formatTimestampDate
 } from './timestampFormatter';
+import {
+    detectTimestampValue,
+    resolveDetectionMode
+} from './timestampDetection';
 
 let configuredFieldMatcher:
     TimestampFieldMatcher | undefined;
+
+let configuredDetectionMode:
+    TimestampDetectionMode | undefined;
 
 export function isTimestampName(name: string): boolean {
     return getConfiguredFieldMatcher()(name);
 }
 
-export function resetTimestampFieldMatcher(): void {
+export function resetTimestampDetectionConfiguration(): void {
     configuredFieldMatcher = undefined;
+    configuredDetectionMode = undefined;
 }
 
 export function convertTimestamp(
+    name: string,
     value: string
 ): { raw: string; date: string } | undefined {
-    const match = value.match(/-?\d{10,19}/);
+    const parsed = detectTimestampValue(
+        name,
+        value,
+        getConfiguredDetectionMode(),
+        getConfiguredFieldMatcher()
+    );
 
-    if (!match) {
+    if (!parsed) {
         return undefined;
     }
 
-    const raw = match[0];
-
-    try {
-        const number = BigInt(raw);
-        const digits = raw.replace('-', '').length;
-
-        let milliseconds: number;
-
-        switch (digits) {
-            case 10:
-                milliseconds = Number(number * 1000n);
-                break;
-            case 13:
-                milliseconds = Number(number);
-                break;
-            case 16:
-                milliseconds = Number(number / 1000n);
-                break;
-            case 19:
-                milliseconds = Number(number / 1_000_000n);
-                break;
-            default:
-                return undefined;
-        }
-
-        const date = new Date(milliseconds);
-
-        if (Number.isNaN(date.getTime())) {
-            return undefined;
-        }
-
-        const year = date.getUTCFullYear();
-
-        if (year < 2000 || year > 2100) {
-            return undefined;
-        }
-
-        return {
-            raw,
-            date: formatDate(date)
-        };
-    } catch {
-        return undefined;
-    }
+    return {
+        raw: parsed.raw,
+        date: formatDate(parsed.date)
+    };
 }
 
 function formatDate(date: Date): string {
@@ -126,6 +101,21 @@ function getConfiguredFieldMatcher(): TimestampFieldMatcher {
     );
 
     return configuredFieldMatcher;
+}
+
+function getConfiguredDetectionMode(): TimestampDetectionMode {
+    if (configuredDetectionMode) {
+        return configuredDetectionMode;
+    }
+
+    const config = vscode.workspace
+        .getConfiguration('timestampDebug');
+
+    configuredDetectionMode = resolveDetectionMode(
+        config.get<unknown>('detectionMode', 'safe')
+    );
+
+    return configuredDetectionMode;
 }
 
 function readStringArray(value: unknown): string[] {

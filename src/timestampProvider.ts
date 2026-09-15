@@ -37,8 +37,15 @@ export class TimestampProvider
         this.emitter.fire();
     }
 
-    add(path: string, value: string): void {
-        const converted = convertTimestamp(value);
+    add(
+        path: string,
+        name: string,
+        value: string
+    ): void {
+        const converted = convertTimestamp(
+            name,
+            value
+        );
 
         if (!converted) {
             return;

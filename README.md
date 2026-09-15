@@ -11,6 +11,7 @@ Timestamp Debug is a VS Code extension that shows Unix timestamps as readable da
 - Automatically scans local variables when the debugger stops
 - Recursively scans nested structs, slices and arrays with configurable depth, per-level and total limits
 - Detects timestamp fields using built-in rules, exact custom names and regex patterns
+- Supports Safe and Aggressive timestamp detection modes
 - Recognizes Unix timestamps in:
   - seconds
   - milliseconds
@@ -32,6 +33,10 @@ Timestamp Debug is a VS Code extension that shows Unix timestamps as readable da
 
 When the debugger stops, Timestamp Debug scans the local variables in the current stack frame and recursively follows nested debugger variables.
 
+### Safe Mode
+
+Safe mode is the default. Each field name is checked in this order:
+
 Each field name is checked in this order:
 
 1. Built-in timestamp field rules
@@ -42,7 +47,13 @@ Built-in rules recognize common names such as `Start`, `End`, `LastStart`, `Star
 
 Custom fields are exact and case-sensitive. Regex patterns are checked only after the built-in and exact custom rules do not match.
 
-After a field name matches, its value is validated. The field is added to the `Timestamp Variables` view only when the value contains a supported 10, 13, 16 or 19-digit Unix timestamp that converts to a date between 2000 and 2100.
+### Aggressive Mode
+
+Aggressive mode checks compatible numeric values regardless of their field names. It can detect timestamps stored in generic fields such as `value`, but numeric identifiers such as `orderId` can become false positives.
+
+Use Aggressive mode only when broad value-based detection is more important than avoiding false positives.
+
+In both modes, the complete value must be a 10, 13, 16 or 19-digit Unix timestamp after surrounding whitespace is removed. The value must convert to a date between 2000 and 2100. Arbitrary strings containing numeric substrings are not treated as timestamps.
 
 ## Installation
 
@@ -169,6 +180,27 @@ A matching field is displayed only when its value is also a valid supported Unix
 
 Changing `customFields` or `fieldPatterns` automatically refreshes the `Timestamp Variables` view while the debugger is stopped. A manual refresh is not required.
 
+### Detection Mode
+
+Setting:
+
+```text
+timestampDebug.detectionMode
+```
+
+Available values:
+
+- `safe` — requires the field name to match a built-in rule, `customFields` or `fieldPatterns`.
+- `aggressive` — checks every compatible numeric value regardless of its field name.
+
+Default:
+
+```text
+safe
+```
+
+Aggressive mode may display numeric IDs and other unrelated values as timestamps. Changing the detection mode automatically refreshes the view while the debugger is stopped.
+
 ### Scan Limits
 
 Use these settings to control recursive scanning of large debugger object graphs:
@@ -224,7 +256,7 @@ npm run compile
 npm test
 ```
 
-The tests cover existing built-in field detection, exact custom fields, regex matches, invalid regex handling, scan-limit validation, stopping conditions, copy-value selection and fixed-offset formatting.
+The tests cover built-in and configured field detection, Safe and Aggressive modes, supported timestamp units, invalid values, scan limits, copy-value selection and timezone formatting.
 
 ## Links
 
