@@ -1,0 +1,85 @@
+{
+  "name": "timestamp-debug",
+  "displayName": "Timestamp Debug",
+  "description": "Shows Unix timestamps as readable dates during debugging",
+  "version": "0.0.1",
+  "publisher": "local",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:timestampDebug.variables"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "views": {
+      "debug": [
+        {
+          "id": "timestampDebug.variables",
+          "name": "Timestamp Variables"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Timestamp Debug",
+      "properties": {
+        "timestampDebug.timezone": {
+          "type": "string",
+          "enum": [
+            "utc",
+            "local"
+          ],
+          "enumDescriptions": [
+            "Show timestamps in UTC",
+            "Show timestamps in local system timezone"
+          ],
+          "default": "utc",
+          "description": "Timezone used for timestamp conversion."
+        },
+        "timestampDebug.dateFormat": {
+          "type": "string",
+          "enum": [
+            "iso",
+            "european"
+          ],
+          "enumDescriptions": [
+            "YYYY-MM-DD HH:mm:ss.SSS",
+            "DD.MM.YYYY HH:mm:ss.SSS"
+          ],
+          "default": "iso",
+          "description": "Format used to display converted timestamps."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "timestampDebug.refresh",
+        "title": "Refresh Timestamp Variables",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "timestampDebug.refresh",
+          "when": "view == timestampDebug.variables",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.6.0"
+  }
+}
