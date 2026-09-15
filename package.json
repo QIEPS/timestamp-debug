@@ -2,9 +2,10 @@
   "name": "timestamp-debug",
   "displayName": "Timestamp Debug",
   "description": "Shows Unix timestamps as readable dates during debugging",
-  "version": "0.1.0",
-  "publisher": "local",
+  "version": "0.1.1",
+  "publisher": "qieps",
   "license": "MIT",
+  "pricing": "Free",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",

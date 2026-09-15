@@ -2,6 +2,14 @@
 
 All notable changes to Timestamp Debug will be documented in this file.
 
+## 0.1.1 - 2026-09-15
+
+### Changed
+
+- Replaced remaining Russian UI text with English
+- Improved README
+- Added Visual Studio Marketplace links
+
 ## 0.1.0 - 2026-09-15
 
 ### Added

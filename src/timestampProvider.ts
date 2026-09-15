@@ -45,7 +45,7 @@ export class TimestampProvider
         if (this.items.size === 0) {
             return [
                 new vscode.TreeItem(
-                    'Timestamp переменные не найдены'
+                    'Timestamp variables not found'
                 )
             ];
         }
