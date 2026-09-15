@@ -9,7 +9,7 @@ Timestamp Debug is a VS Code extension that shows Unix timestamps as readable da
 ## Features
 
 - Automatically scans local variables when the debugger stops
-- Recursively scans nested structs, slices and arrays with cycle and size limits
+- Recursively scans nested structs, slices and arrays with configurable depth, per-level and total limits
 - Detects timestamp fields using built-in rules, exact custom names and regex patterns
 - Recognizes Unix timestamps in:
   - seconds
@@ -152,6 +152,22 @@ A matching field is displayed only when its value is also a valid supported Unix
 
 Changing `customFields` or `fieldPatterns` automatically refreshes the `Timestamp Variables` view while the debugger is stopped. A manual refresh is not required.
 
+### Scan Limits
+
+Use these settings to control recursive scanning of large debugger object graphs:
+
+```json
+"timestampDebug.maxScanDepth": 4,
+"timestampDebug.maxVariablesPerLevel": 100,
+"timestampDebug.maxTotalVariables": 1000
+```
+
+- `maxScanDepth` is the maximum recursive depth below a debugger scope. Top-level local variables are at depth `0`.
+- `maxVariablesPerLevel` limits how many variables are processed from one debugger level.
+- `maxTotalVariables` limits the total number of variables processed across the entire scan.
+
+All scan limits must be positive integers. Missing or invalid values fall back individually to the safe defaults shown above. Changing a scan limit automatically refreshes the view while the debugger is stopped.
+
 ## Supported Timestamp Formats
 
 | Digits | Unit         |
@@ -181,7 +197,7 @@ npm run compile
 npm test
 ```
 
-The tests cover existing built-in field detection, exact custom fields, regex matches and invalid regex handling.
+The tests cover existing built-in field detection, exact custom fields, regex matches, invalid regex handling, scan-limit validation and stopping conditions.
 
 ## Links
 

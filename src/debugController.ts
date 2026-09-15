@@ -55,6 +55,21 @@ export class DebugController {
                             'timestampDebug.fieldPatterns'
                         );
 
+                    const maxScanDepthChanged =
+                        event.affectsConfiguration(
+                            'timestampDebug.maxScanDepth'
+                        );
+
+                    const maxVariablesPerLevelChanged =
+                        event.affectsConfiguration(
+                            'timestampDebug.maxVariablesPerLevel'
+                        );
+
+                    const maxTotalVariablesChanged =
+                        event.affectsConfiguration(
+                            'timestampDebug.maxTotalVariables'
+                        );
+
                     if (
                         customFieldsChanged ||
                         fieldPatternsChanged
@@ -66,7 +81,10 @@ export class DebugController {
                         !timezoneChanged &&
                         !dateFormatChanged &&
                         !customFieldsChanged &&
-                        !fieldPatternsChanged
+                        !fieldPatternsChanged &&
+                        !maxScanDepthChanged &&
+                        !maxVariablesPerLevelChanged &&
+                        !maxTotalVariablesChanged
                     ) {
                         return;
                     }

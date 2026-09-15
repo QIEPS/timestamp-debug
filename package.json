@@ -78,6 +78,24 @@
           },
           "default": [],
           "description": "Regular-expression patterns for debugger field names to treat as timestamps. Invalid patterns are ignored."
+        },
+        "timestampDebug.maxScanDepth": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 4,
+          "description": "Maximum recursive depth scanned below a debugger scope. Top-level variables are at depth 0."
+        },
+        "timestampDebug.maxVariablesPerLevel": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 100,
+          "description": "Maximum number of debugger variables processed from each level."
+        },
+        "timestampDebug.maxTotalVariables": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1000,
+          "description": "Maximum total number of debugger variables processed during one scan."
         }
       }
     },

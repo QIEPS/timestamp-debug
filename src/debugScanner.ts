@@ -2,9 +2,10 @@ import * as vscode from 'vscode';
 import { TimestampProvider } from './timestampProvider';
 import { isTimestampName } from './timestamp';
 import { DapVariable } from './types';
-
-const MAX_DEPTH = 4;
-const MAX_VARIABLES_PER_LEVEL = 100;
+import {
+    resolveScanLimits,
+    ScanBudget
+} from './scanLimits';
 
 export async function scanStoppedSession(
     session: vscode.DebugSession,
@@ -40,15 +41,21 @@ export async function scanStoppedSession(
         );
 
         const visited = new Set<number>();
+        const budget = createScanBudget();
 
         for (const scope of localScopes) {
+            if (!budget.hasRemainingVariables()) {
+                break;
+            }
+
             await scanVariables(
                 session,
                 scope.variablesReference,
                 '',
                 0,
                 provider,
-                visited
+                visited,
+                budget
             );
         }
     } catch (error) {
@@ -65,13 +72,18 @@ async function scanVariables(
     parentPath: string,
     depth: number,
     provider: TimestampProvider,
-    visited: Set<number>
+    visited: Set<number>,
+    budget: ScanBudget
 ): Promise<void> {
     if (!variablesReference) {
         return;
     }
 
-    if (depth > MAX_DEPTH) {
+    if (!budget.canScanDepth(depth)) {
+        return;
+    }
+
+    if (!budget.hasRemainingVariables()) {
         return;
     }
 
@@ -96,15 +108,15 @@ async function scanVariables(
         return;
     }
 
-    const variables =
-        response.variables ?? [];
+    const variables = budget.limitVariablesAtLevel(
+        response.variables ?? []
+    );
 
-    for (
-        const variable of variables.slice(
-            0,
-            MAX_VARIABLES_PER_LEVEL
-        )
-    ) {
+    for (const variable of variables) {
+        if (!budget.tryProcessVariable()) {
+            return;
+        }
+
         const path = joinPath(
             parentPath,
             variable.name
@@ -119,7 +131,7 @@ async function scanVariables(
 
         if (
             variable.variablesReference > 0 &&
-            shouldDescend(variable, depth)
+            shouldDescend(variable, depth, budget)
         ) {
             await scanVariables(
                 session,
@@ -127,7 +139,8 @@ async function scanVariables(
                 path,
                 depth + 1,
                 provider,
-                visited
+                visited,
+                budget
             );
         }
     }
@@ -135,9 +148,14 @@ async function scanVariables(
 
 function shouldDescend(
     variable: DapVariable,
-    depth: number
+    depth: number,
+    budget: ScanBudget
 ): boolean {
-    if (depth >= MAX_DEPTH) {
+    if (!budget.canDescendFrom(depth)) {
+        return false;
+    }
+
+    if (!budget.hasRemainingVariables()) {
         return false;
     }
 
@@ -168,6 +186,25 @@ function shouldDescend(
     }
 
     return true;
+}
+
+function createScanBudget(): ScanBudget {
+    const config = vscode.workspace
+        .getConfiguration('timestampDebug');
+
+    const limits = resolveScanLimits({
+        maxScanDepth: config.get<unknown>(
+            'maxScanDepth'
+        ),
+        maxVariablesPerLevel: config.get<unknown>(
+            'maxVariablesPerLevel'
+        ),
+        maxTotalVariables: config.get<unknown>(
+            'maxTotalVariables'
+        )
+    });
+
+    return new ScanBudget(limits);
 }
 
 export function joinPath(
