@@ -18,6 +18,7 @@ Timestamp Debug is a VS Code extension that shows Unix timestamps as readable da
 - Shows readable dates in the `Timestamp Variables` panel
 - Supports UTC and local timezone
 - Supports ISO and European date formats
+- Supports project-specific timestamp field names and regex patterns
 - Automatically refreshes on breakpoint
 - Manual refresh button
 - Works with Go / Delve debugging
@@ -112,6 +113,8 @@ Use `timestampDebug.customFields` to add exact debugger field names:
 ]
 ```
 
+Custom field names are case-sensitive and must match the complete debugger field name. For example, `BillingDate` does not match `billingdate` or `BillingDateValue`.
+
 ### Timestamp Field Patterns
 
 Use `timestampDebug.fieldPatterns` to match debugger field names with regular expressions:
@@ -123,7 +126,17 @@ Use `timestampDebug.fieldPatterns` to match debugger field names with regular ex
 ]
 ```
 
-Invalid regular expressions are ignored. Built-in timestamp field rules continue to apply before custom fields and patterns.
+Patterns use JavaScript regular-expression syntax and are evaluated against the debugger field name. Do not include surrounding `/` characters. Add `^` and `$` when the pattern must match the entire name.
+
+Detection checks field rules in this order:
+
+1. Built-in timestamp field rules
+2. Exact names from `timestampDebug.customFields`
+3. Regular expressions from `timestampDebug.fieldPatterns`
+
+A matching field is displayed only when its value is also a valid supported Unix timestamp. Invalid regular expressions are ignored without disabling built-in rules, custom fields or other valid patterns.
+
+Changing `customFields` or `fieldPatterns` automatically refreshes the `Timestamp Variables` view while the debugger is stopped. A manual refresh is not required.
 
 ## Supported Timestamp Formats
 
@@ -143,6 +156,18 @@ Invalid regular expressions are ignored. Built-in timestamp field rules continue
 5. Timestamps are detected automatically.
 
 Use the refresh button to rescan variables manually.
+
+## Development
+
+Install dependencies, compile the extension and run the tests:
+
+```bash
+npm ci
+npm run compile
+npm test
+```
+
+The tests cover existing built-in field detection, exact custom fields, regex matches and invalid regex handling.
 
 ## Links
 
