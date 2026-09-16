@@ -2,6 +2,32 @@
 
 All notable changes to Timestamp Debug will be documented in this file.
 
+## 0.4.0 - 2026-09-16
+
+### Added
+
+- Added a collapsible Timestamp Variables hierarchy built from debugger variable paths.
+- Added theme-aware colored icons for root and nested groups, array indices, Unix leaves and ISO leaves.
+- Added live scan-state rows for idle, scanning, completed, empty, failed and limited scans.
+- Added theme icons to timestamp copy commands and structured tooltip icons for path, raw value and formatted date.
+- Added `timestampDebug.displayMode` with `date` and `timestampAndDate` modes.
+- Added strict ISO timestamp parsing with `Z` and numeric UTC offsets, including quoted debugger string values.
+
+### Changed
+
+- Numeric DAP child names now use bracket notation such as `items[0]` in displayed and copied variable paths.
+- Timestamp leaf tooltips preserve the complete path, raw value and formatted date in both display modes.
+- Traversal now reports which safety limit truncated a scan so the view can warn users instead of silently omitting deeper variables.
+- Partial scans now use a neutral informational status and a plain-language tooltip showing the reached limits, their configured values and whether displayed timestamps remain valid.
+- Timestamp tree updates are batched to avoid rebuilding and repainting the complete hierarchy for every detected value.
+- Repeated DAP observations of the same path and value are deduplicated before timestamp conversion, and stale timestamp rows are removed when a value stops matching.
+- DAP variable requests now use standard `start` and `count` pagination hints, limiting large adapter responses while preserving configured scan-limit behavior.
+- Replaced the obsolete flat-list screenshot with an optimized Marketplace image showing the hierarchical, theme-aware view.
+
+### Tests
+
+- Added coverage for hierarchical paths, both display modes, supported and invalid ISO strings, calendar validation, boundary years, timezone conversion, raw ISO copying, traversal limit reporting and DAP pagination hints.
+
 ## 0.3.0 - 2026-09-15
 
 ### Changed

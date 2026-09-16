@@ -5,8 +5,8 @@ import type {
     TimestampFieldMatcher
 } from './timestampFieldMatcher';
 import {
-    parseUnixTimestamp,
-    ParsedUnixTimestamp
+    parseTimestamp,
+    ParsedTimestamp
 } from './timestampParser';
 
 export function resolveDetectionMode(
@@ -22,7 +22,7 @@ export function detectTimestampValue(
     value: string,
     mode: TimestampDetectionMode,
     matchesTimestampField: TimestampFieldMatcher
-): ParsedUnixTimestamp | undefined {
+): ParsedTimestamp | undefined {
     if (
         mode === 'safe' &&
         !matchesTimestampField(name)
@@ -30,5 +30,5 @@ export function detectTimestampValue(
         return undefined;
     }
 
-    return parseUnixTimestamp(value);
+    return parseTimestamp(value);
 }

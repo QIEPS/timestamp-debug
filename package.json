@@ -1,8 +1,8 @@
 {
   "name": "timestamp-debug",
   "displayName": "Timestamp Debug",
-  "description": "Inspect Unix timestamps as readable dates in VS Code debugger variables",
-  "version": "0.3.0",
+  "description": "Inspect Unix and ISO timestamps as readable dates in VS Code debugger variables",
+  "version": "0.4.0",
   "publisher": "qieps",
   "license": "MIT",
   "pricing": "Free",
@@ -24,6 +24,7 @@
   "keywords": [
     "timestamp",
     "unix",
+    "iso-8601",
     "debugger",
     "debugging",
     "datetime",
@@ -82,7 +83,7 @@
           ],
           "enumDescriptions": [
             "Detect valid timestamps only in fields matched by built-in or configured field rules",
-            "Detect any valid timestamp-shaped numeric value regardless of field name; may produce false positives"
+            "Detect any supported Unix or ISO timestamp value regardless of field name; may produce false positives"
           ],
           "default": "safe",
           "description": "Controls whether timestamp detection requires a matching field name."
@@ -99,6 +100,19 @@
           ],
           "default": "iso",
           "description": "Format used to display converted timestamps."
+        },
+        "timestampDebug.displayMode": {
+          "type": "string",
+          "enum": [
+            "date",
+            "timestampAndDate"
+          ],
+          "enumDescriptions": [
+            "Show only the formatted date",
+            "Show the original timestamp followed by the formatted date"
+          ],
+          "default": "timestampAndDate",
+          "description": "Controls how timestamp leaf values are displayed in the Timestamp Variables view."
         },
         "timestampDebug.customFields": {
           "type": "array",
@@ -144,15 +158,18 @@
       },
       {
         "command": "timestampDebug.copyTimestamp",
-        "title": "Copy Timestamp"
+        "title": "Copy Timestamp",
+        "icon": "$(copy)"
       },
       {
         "command": "timestampDebug.copyFormattedDate",
-        "title": "Copy Formatted Date"
+        "title": "Copy Formatted Date",
+        "icon": "$(calendar)"
       },
       {
         "command": "timestampDebug.copyVariablePath",
-        "title": "Copy Variable Path"
+        "title": "Copy Variable Path",
+        "icon": "$(symbol-field)"
       }
     ],
     "menus": {

@@ -40,3 +40,16 @@ test('returns only the variable path for copying', () => {
         'timeSegments[0].Start'
     );
 });
+
+test('preserves the original ISO debugger value for copying', () => {
+    const isoItem = {
+        path: 'payload.CreatedAt',
+        raw: '"2026-07-02T20:30:09.229Z"',
+        date: '2026-07-02 20:30:09.229 UTC'
+    };
+
+    assert.equal(
+        getTimestampCopyValue(isoItem, 'timestamp'),
+        '"2026-07-02T20:30:09.229Z"'
+    );
+});

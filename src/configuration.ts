@@ -12,6 +12,7 @@ import {
 import type {
     TimestampDateFormat,
     TimestampDetectionMode,
+    TimestampDisplayMode,
     TimestampTimezone
 } from './types';
 
@@ -19,6 +20,7 @@ export type RawTimestampDebugConfiguration = {
     timezone?: unknown;
     fixedOffset?: unknown;
     dateFormat?: unknown;
+    displayMode?: unknown;
     detectionMode?: unknown;
     customFields?: unknown;
     fieldPatterns?: unknown;
@@ -31,6 +33,7 @@ export type TimestampDebugConfiguration = {
     timezone: TimestampTimezone;
     fixedOffset: string;
     dateFormat: TimestampDateFormat;
+    displayMode: TimestampDisplayMode;
     detectionMode: TimestampDetectionMode;
     customFields: string[];
     fieldPatterns: string[];
@@ -44,6 +47,7 @@ export function resolveTimestampDebugConfiguration(
         timezone: resolveTimezone(raw.timezone),
         fixedOffset: resolveFixedOffset(raw.fixedOffset),
         dateFormat: resolveDateFormat(raw.dateFormat),
+        displayMode: resolveDisplayMode(raw.displayMode),
         detectionMode: resolveDetectionMode(
             raw.detectionMode
         ),
@@ -88,6 +92,14 @@ function resolveDateFormat(
     return value === 'european'
         ? 'european'
         : 'iso';
+}
+
+function resolveDisplayMode(
+    value: unknown
+): TimestampDisplayMode {
+    return value === 'date'
+        ? 'date'
+        : 'timestampAndDate';
 }
 
 function resolveStringArray(value: unknown): string[] {

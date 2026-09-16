@@ -14,7 +14,8 @@ export function activate(
         readTimestampDebugConfiguration();
 
     const provider = new TimestampProvider(
-        new TimestampConverter(configuration)
+        new TimestampConverter(configuration),
+        configuration.displayMode
     );
 
     context.subscriptions.push(

@@ -31,7 +31,11 @@ export function registerCopyCommands(
             vscode.commands.registerCommand(
                 command,
                 async (item: unknown) => {
-                    if (!(item instanceof TimestampTreeItem)) {
+                    if (
+                        !(item instanceof TimestampTreeItem) ||
+                        !item.timestamp ||
+                        item.node.children.length > 0
+                    ) {
                         return;
                     }
 

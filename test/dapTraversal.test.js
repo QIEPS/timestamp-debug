@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const {
+    joinVariablePath,
     scanDapThread
 } = require('../out/dapTraversal');
 
@@ -13,9 +14,11 @@ function createClient(
     }]
 ) {
     const variableRequests = [];
+    const variableRequestArguments = [];
 
     return {
         variableRequests,
+        variableRequestArguments,
         async request(command, argumentsValue) {
             if (command === 'stackTrace') {
                 return { stackFrames: [{ id: 100 }] };
@@ -30,10 +33,21 @@ function createClient(
                     argumentsValue.variablesReference;
 
                 variableRequests.push(reference);
+                variableRequestArguments.push(
+                    argumentsValue
+                );
+
+                const variables =
+                    variablesByReference.get(reference) ?? [];
+                const start = argumentsValue.start ?? 0;
+                const count = argumentsValue.count ??
+                    variables.length;
 
                 return {
-                    variables:
-                        variablesByReference.get(reference) ?? []
+                    variables: variables.slice(
+                        start,
+                        start + count
+                    )
                 };
             }
 
@@ -62,6 +76,17 @@ const limits = {
     maxTotalVariables: 1000
 };
 
+test('uses bracket notation for numeric DAP child names', () => {
+    assert.equal(
+        joinVariablePath('items', '0'),
+        'items[0]'
+    );
+    assert.equal(
+        joinVariablePath('items', '[1]'),
+        'items[1]'
+    );
+});
+
 test('traverses standard DAP references and protects against cycles', async () => {
     const client = createClient(new Map([
         [1, [
@@ -76,7 +101,7 @@ test('traverses standard DAP references and protects against cycles', async () =
     ]));
     const paths = [];
 
-    await scanDapThread(
+    const result = await scanDapThread(
         client,
         7,
         { add: path => paths.push(path) },
@@ -84,6 +109,10 @@ test('traverses standard DAP references and protects against cycles', async () =
     );
 
     assert.deepEqual(client.variableRequests, [1, 2, 3]);
+    assert.deepEqual(result, {
+        failed: false,
+        limitsReached: []
+    });
     assert.deepEqual(paths, [
         'segments',
         'CreatedAt',
@@ -107,7 +136,7 @@ test('scans DAP scopes without relying on language-specific names', async () => 
     );
     const paths = [];
 
-    await scanDapThread(
+    const result = await scanDapThread(
         client,
         7,
         { add: path => paths.push(path) },
@@ -116,6 +145,7 @@ test('scans DAP scopes without relying on language-specific names', async () => 
 
     assert.deepEqual(client.variableRequests, [1, 9]);
     assert.deepEqual(paths, ['CreatedAt', 'UpdatedAt']);
+    assert.deepEqual(result.limitsReached, []);
 });
 
 test('finishes an earlier scope before a large later scope consumes the budget', async () => {
@@ -287,7 +317,7 @@ test('stops requesting children after the configured depth', async () => {
     ]));
     const paths = [];
 
-    await scanDapThread(
+    const result = await scanDapThread(
         client,
         7,
         { add: path => paths.push(path) },
@@ -299,6 +329,41 @@ test('stops requesting children after the configured depth', async () => {
 
     assert.deepEqual(client.variableRequests, [1, 2]);
     assert.deepEqual(paths, ['root', 'root.child']);
+    assert.deepEqual(result.limitsReached, [
+        'maxScanDepth'
+    ]);
+});
+
+test('reports when variables are truncated at one level', async () => {
+    const client = createClient(new Map([
+        [1, [
+            variable('first', '1'),
+            variable('second', '2'),
+            variable('third', '3')
+        ]]
+    ]));
+
+    const result = await scanDapThread(
+        client,
+        7,
+        { add() {} },
+        {
+            ...limits,
+            maxVariablesPerLevel: 2
+        }
+    );
+
+    assert.deepEqual(result.limitsReached, [
+        'maxVariablesPerLevel'
+    ]);
+    assert.deepEqual(
+        client.variableRequestArguments[0],
+        {
+            variablesReference: 1,
+            start: 0,
+            count: 3
+        }
+    );
 });
 
 test('stops exactly at the total variable budget', async () => {
@@ -311,7 +376,7 @@ test('stops exactly at the total variable budget', async () => {
     ]));
     const paths = [];
 
-    await scanDapThread(
+    const result = await scanDapThread(
         client,
         7,
         { add: path => paths.push(path) },
@@ -322,6 +387,13 @@ test('stops exactly at the total variable budget', async () => {
     );
 
     assert.deepEqual(paths, ['first', 'second']);
+    assert.deepEqual(result.limitsReached, [
+        'maxTotalVariables'
+    ]);
+    assert.equal(
+        client.variableRequestArguments[0].count,
+        3
+    );
 });
 
 test('stops without publishing results after cancellation', async () => {

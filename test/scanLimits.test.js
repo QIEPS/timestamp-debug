@@ -104,4 +104,5 @@ test('stops after the configured total variable count', () => {
     assert.equal(budget.tryProcessVariable(), false);
     assert.equal(budget.hasRemainingVariables(), false);
     assert.equal(budget.totalProcessedVariables, 2);
+    assert.equal(budget.remainingVariables, 0);
 });

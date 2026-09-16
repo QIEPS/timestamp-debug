@@ -65,3 +65,22 @@ test('converter supports Aggressive mode without changing parsing', () => {
         undefined
     );
 });
+
+test('converter formats ISO timestamps and preserves the raw string', () => {
+    const raw = '"2026-07-02T20:30:09.229+03:00"';
+    const converter = new TimestampConverter(
+        resolveTimestampDebugConfiguration({
+            timezone: 'fixed',
+            fixedOffset: 'UTC+05:45',
+            dateFormat: 'european'
+        })
+    );
+
+    assert.deepEqual(
+        converter.convert('CreatedAt', raw),
+        {
+            raw,
+            date: '02.07.2026 23:15:09.229 UTC+05:45'
+        }
+    );
+});

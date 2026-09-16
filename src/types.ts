@@ -23,6 +23,10 @@ export type TimestampTimezone =
 
 export type TimestampDateFormat = 'iso' | 'european';
 
+export type TimestampDisplayMode =
+    | 'date'
+    | 'timestampAndDate';
+
 export type TimestampDetectionMode =
     | 'safe'
     | 'aggressive';

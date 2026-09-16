@@ -40,15 +40,24 @@ export type TimestampVariableSink = {
     ): void;
 };
 
+export type DapScanLimit = keyof ScanLimits;
+
+export type DapScanResult = {
+    failed: boolean;
+    limitsReached: DapScanLimit[];
+};
+
 export async function scanDapThread(
     client: DapClient,
     threadId: number,
     sink: TimestampVariableSink,
     limits: ScanLimits,
     isActive: () => boolean = () => true
-): Promise<void> {
+): Promise<DapScanResult> {
+    const limitsReached = new Set<DapScanLimit>();
+
     if (!isActive()) {
-        return;
+        return { failed: false, limitsReached: [] };
     }
 
     const stack = await client.request(
@@ -61,13 +70,13 @@ export async function scanDapThread(
     ) as StackTraceResponse;
 
     if (!isActive()) {
-        return;
+        return { failed: false, limitsReached: [] };
     }
 
     const frame = stack.stackFrames?.[0];
 
     if (!frame) {
-        return;
+        return { failed: false, limitsReached: [] };
     }
 
     const scopes = await client.request(
@@ -78,7 +87,7 @@ export async function scanDapThread(
     ) as ScopesResponse;
 
     if (!isActive()) {
-        return;
+        return { failed: false, limitsReached: [] };
     }
 
     const visitedVariablesReferences = new Set<number>();
@@ -86,11 +95,12 @@ export async function scanDapThread(
 
     for (const scope of scopes.scopes ?? []) {
         if (!isActive()) {
-            return;
+            break;
         }
 
         if (!budget.hasRemainingVariables()) {
-            return;
+            limitsReached.add('maxTotalVariables');
+            break;
         }
 
         const rootVariables = await scanVariables(
@@ -104,6 +114,7 @@ export async function scanDapThread(
             sink,
             visitedVariablesReferences,
             budget,
+            limitsReached,
             isActive
         );
 
@@ -113,9 +124,15 @@ export async function scanDapThread(
             sink,
             visitedVariablesReferences,
             budget,
+            limitsReached,
             isActive
         );
     }
+
+    return {
+        failed: false,
+        limitsReached: [...limitsReached]
+    };
 }
 
 async function scanBranches(
@@ -124,6 +141,7 @@ async function scanBranches(
     sink: TimestampVariableSink,
     visitedVariablesReferences: Set<number>,
     budget: ScanBudget,
+    limitsReached: Set<DapScanLimit>,
     isActive: () => boolean
 ): Promise<void> {
     while (
@@ -140,6 +158,7 @@ async function scanBranches(
             }
 
             if (!budget.hasRemainingVariables()) {
+                limitsReached.add('maxTotalVariables');
                 return;
             }
 
@@ -157,6 +176,7 @@ async function scanBranches(
                 sink,
                 visitedVariablesReferences,
                 budget,
+                limitsReached,
                 isActive
             );
 
@@ -169,6 +189,13 @@ async function scanBranches(
             }
         }
     }
+
+    if (
+        branches.length > 0 &&
+        !budget.hasRemainingVariables()
+    ) {
+        limitsReached.add('maxTotalVariables');
+    }
 }
 
 async function scanVariables(
@@ -177,13 +204,22 @@ async function scanVariables(
     sink: TimestampVariableSink,
     visitedVariablesReferences: Set<number>,
     budget: ScanBudget,
+    limitsReached: Set<DapScanLimit>,
     isActive: () => boolean
 ): Promise<PendingVariables[]> {
+    if (!budget.canScanDepth(pending.depth)) {
+        limitsReached.add('maxScanDepth');
+        return [];
+    }
+
+    if (!budget.hasRemainingVariables()) {
+        limitsReached.add('maxTotalVariables');
+        return [];
+    }
+
     if (
         !isActive() ||
         pending.variablesReference <= 0 ||
-        !budget.canScanDepth(pending.depth) ||
-        !budget.hasRemainingVariables() ||
         visitedVariablesReferences.has(
             pending.variablesReference
         )
@@ -198,11 +234,22 @@ async function scanVariables(
     let response: VariablesResponse;
 
     try {
+        const activeLimit = Math.min(
+            budget.limits.maxVariablesPerLevel,
+            budget.remainingVariables
+        );
+        const maximumResponseSize = activeLimit ===
+            Number.MAX_SAFE_INTEGER
+            ? Number.MAX_SAFE_INTEGER
+            : activeLimit + 1;
+
         response = await client.request(
             'variables',
             {
                 variablesReference:
-                    pending.variablesReference
+                    pending.variablesReference,
+                start: 0,
+                count: maximumResponseSize
             }
         ) as VariablesResponse;
     } catch {
@@ -214,8 +261,17 @@ async function scanVariables(
     }
 
     const children: PendingVariables[] = [];
+    const responseVariables = response.variables ?? [];
+
+    if (
+        responseVariables.length >
+        budget.limits.maxVariablesPerLevel
+    ) {
+        limitsReached.add('maxVariablesPerLevel');
+    }
+
     const variables = budget.limitVariablesAtLevel(
-        response.variables ?? []
+        responseVariables
     );
 
     for (const variable of variables) {
@@ -224,6 +280,7 @@ async function scanVariables(
         }
 
         if (!budget.tryProcessVariable()) {
+            limitsReached.add('maxTotalVariables');
             break;
         }
 
@@ -234,11 +291,15 @@ async function scanVariables(
 
         sink.add(path, variable.name, variable.value);
 
-        if (
-            variable.variablesReference > 0 &&
-            budget.canDescendFrom(pending.depth) &&
-            budget.hasRemainingVariables()
-        ) {
+        if (variable.variablesReference <= 0) {
+            continue;
+        }
+
+        if (!budget.canDescendFrom(pending.depth)) {
+            limitsReached.add('maxScanDepth');
+        } else if (!budget.hasRemainingVariables()) {
+            limitsReached.add('maxTotalVariables');
+        } else {
             children.push({
                 variablesReference:
                     variable.variablesReference,
@@ -259,8 +320,13 @@ export function joinVariablePath(
         return name;
     }
 
-    if (name.startsWith('[')) {
-        return `${parent}${name}`;
+    if (
+        name.startsWith('[') ||
+        /^\d+$/.test(name)
+    ) {
+        return name.startsWith('[')
+            ? `${parent}${name}`
+            : `${parent}[${name}]`;
     }
 
     return `${parent}.${name}`;

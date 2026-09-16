@@ -77,6 +77,11 @@ export class ScanBudget {
     get totalProcessedVariables(): number {
         return this.processedVariables;
     }
+
+    get remainingVariables(): number {
+        return this.limits.maxTotalVariables -
+            this.processedVariables;
+    }
 }
 
 function resolvePositiveInteger(

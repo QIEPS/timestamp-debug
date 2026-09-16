@@ -12,6 +12,7 @@ const SETTING_KEYS = {
     timezone: 'timezone',
     fixedOffset: 'fixedOffset',
     dateFormat: 'dateFormat',
+    displayMode: 'displayMode',
     detectionMode: 'detectionMode',
     customFields: 'customFields',
     fieldPatterns: 'fieldPatterns',
@@ -37,6 +38,9 @@ TimestampDebugConfiguration {
         ),
         dateFormat: configuration.get(
             SETTING_KEYS.dateFormat
+        ),
+        displayMode: configuration.get(
+            SETTING_KEYS.displayMode
         ),
         detectionMode: configuration.get(
             SETTING_KEYS.detectionMode

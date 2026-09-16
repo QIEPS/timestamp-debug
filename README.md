@@ -2,7 +2,7 @@
 
 [![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/qieps.timestamp-debug?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=qieps.timestamp-debug)
 
-Timestamp Debug finds Unix timestamps in debugger variables and shows them as readable dates without changing the original values.
+Timestamp Debug finds Unix and ISO timestamps in debugger variables and shows them as readable dates without changing the original values.
 
 ## Quick Start
 
@@ -20,11 +20,12 @@ Start = 1783024209229
 the view displays:
 
 ```text
-timeSegments[0].Start
-1783024209229 → 2026-07-02 20:30:09.229 UTC
+timeSegments
+└─ [0]
+   └─ Start  1783024209229 → 2026-07-02 20:30:09.229 UTC
 ```
 
-![Timestamp Debug showing detected timestamps and copy actions](media/timestamp-variables.png)
+![Timestamp Debug showing a partial scan with hierarchical Unix and ISO timestamp results](media/timestamp-variables.jpg)
 
 ## Features
 
@@ -33,9 +34,12 @@ timeSegments[0].Start
 - Detects timestamp fields using built-in rules, exact custom names and regular expressions.
 - Provides Safe and Aggressive detection modes; Safe is the default.
 - Recognizes Unix timestamps in seconds, milliseconds, microseconds and nanoseconds.
+- Recognizes strict ISO timestamp strings with `Z` or numeric UTC offsets.
 - Supports UTC, local time and fixed UTC offsets with minute precision.
 - Supports ISO-style and European date display formats.
-- Shows the complete variable path, original timestamp and formatted date.
+- Groups timestamp variables into a collapsible tree matching their debugger paths.
+- Uses theme-aware colored icons for groups, array indices, Unix values, ISO values and scan states.
+- Supports date-only and timestamp-with-date display modes.
 - Copies the timestamp, formatted date or variable path from the item context menu.
 - Refreshes automatically after relevant settings change while the debugger is stopped.
 - Clears results when debugging continues or the active debug session ends.
@@ -57,19 +61,31 @@ Built-in matching is case-insensitive and ignores `_` and `-`. Custom field name
 
 ### Aggressive Mode
 
-Aggressive mode checks compatible numeric values regardless of their field names. This can find timestamps stored in generic fields such as `value`, but it may also interpret numeric identifiers such as `orderId` as timestamps.
+Aggressive mode checks compatible Unix and ISO values regardless of their field names. This can find timestamps stored in generic fields such as `value`, but it may also interpret numeric identifiers such as `orderId` as timestamps.
 
 Use Aggressive mode only when broader detection is more important than avoiding false positives.
 
 ### Value Validation
 
-In both modes, the complete value must:
+In both modes, the complete value must be either a supported Unix timestamp or a strict ISO timestamp. Embedded timestamps are not detected.
+
+Unix values must:
 
 - contain only an optional minus sign followed by digits;
 - have exactly 10, 13, 16 or 19 digits;
 - convert to a date between the years 2000 and 2100.
 
-Strings containing an embedded number are not treated as timestamps.
+ISO values must contain a complete date, time and timezone. Supported forms are:
+
+```text
+2026-07-02T20:30:09Z
+2026-07-02T20:30:09.229Z
+2026-07-02T20:30:09+03:00
+2026-07-02T20:30:09.229+03:00
+2026-07-02 20:30:09.229+00:00
+```
+
+Invalid calendar dates, missing timezones, lowercase `z`, partial values and fractional seconds other than exactly three digits are rejected. Matching single or double quotes added by a debugger are supported and preserved as part of the raw value.
 
 ## Supported Unix Timestamp Units
 
@@ -101,6 +117,7 @@ Cycles are protected by visited DAP references and the configured depth, per-lev
 | `timestampDebug.timezone` | `utc` | Display timezone: `utc`, `local` or `fixed`. |
 | `timestampDebug.fixedOffset` | `UTC+00:00` | Offset used when `timezone` is `fixed`. |
 | `timestampDebug.dateFormat` | `iso` | Date format: `iso` or `european`. |
+| `timestampDebug.displayMode` | `timestampAndDate` | Leaf display: `date` or `timestampAndDate`. |
 | `timestampDebug.detectionMode` | `safe` | Detection mode: `safe` or `aggressive`. |
 | `timestampDebug.customFields` | `[]` | Additional exact, case-sensitive field names. |
 | `timestampDebug.fieldPatterns` | `[]` | JavaScript regular expressions for field names. |
@@ -115,6 +132,7 @@ Example `settings.json` configuration:
   "timestampDebug.timezone": "fixed",
   "timestampDebug.fixedOffset": "UTC+05:45",
   "timestampDebug.dateFormat": "european",
+  "timestampDebug.displayMode": "timestampAndDate",
   "timestampDebug.detectionMode": "safe",
   "timestampDebug.customFields": [
     "BillingDate",
@@ -135,7 +153,7 @@ Example `settings.json` configuration:
 
 `timestampDebug.fieldPatterns` uses JavaScript regular-expression syntax. Do not include surrounding `/` characters. Use `^` and `$` when a pattern must match the complete field name. Invalid expressions are ignored without disabling other detection rules.
 
-A matching name is displayed only when its value is also a valid supported Unix timestamp.
+A matching name is displayed only when its value is also a valid supported Unix or ISO timestamp.
 
 ### Fixed UTC Offsets
 
@@ -168,13 +186,51 @@ All supported setting changes automatically refresh the view while the debugger 
 
 Use the refresh button in the view title to scan the current stopped frame again.
 
-Right-click a timestamp item to access:
+Timestamp paths are displayed as a collapsible hierarchy:
 
-- `Copy Timestamp` — copies only the original numeric value.
+```text
+timeSegments
+├─ [0]
+│  ├─ Start
+│  └─ End
+└─ [1]
+   ├─ Start
+   └─ End
+```
+
+Timestamp leaf nodes support two display modes:
+
+```text
+Date only:
+Start  2026-07-02 20:30:09.229 UTC
+
+Timestamp + Date:
+Start  1783024209229 → 2026-07-02 20:30:09.229 UTC
+```
+
+Set `timestampDebug.displayMode` to `date` or `timestampAndDate`. Changes are applied immediately. The tooltip always includes the complete variable path, original raw value and formatted date.
+
+Tree icons use semantic colors from the active VS Code theme:
+
+- root groups use the namespace color;
+- nested groups use the object color;
+- bracketed indices use the array color;
+- Unix timestamp leaves use a green clock;
+- ISO timestamp leaves use a blue calendar.
+
+The first row reports the current scan state: waiting for a paused debugger, scanning, completed, no timestamps found or failed. Completed scans also show the number of timestamp paths found.
+
+`Partial scan` is an informational state, not an error. It means a configured safety limit stopped traversal before every debugger variable was visited. This is common for large global scopes. Hover over the status to see only the limits that were reached, their configured values, and confirmation that displayed timestamps remain valid.
+
+Right-click a timestamp leaf to access:
+
+- `Copy Timestamp` — copies only the original raw value.
 - `Copy Formatted Date` — copies only the displayed date.
 - `Copy Variable Path` — copies only the debugger variable path.
 
-No labels or additional text are added to copied values.
+No labels or additional text are added to copied values. For ISO timestamps, Copy Timestamp preserves the raw debugger value.
+
+Copy commands use the standard theme icons for raw values, formatted dates and variable paths. Group and status rows do not expose timestamp copy actions.
 
 ## Debugger Compatibility
 

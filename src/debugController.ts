@@ -76,6 +76,9 @@ export class DebugController implements vscode.Disposable {
                             this.configuration
                         )
                     );
+                    this.provider.setDisplayMode(
+                        this.configuration.displayMode
+                    );
 
                     void this.refresh();
                 }
@@ -95,7 +98,7 @@ export class DebugController implements vscode.Disposable {
                     this.invalidateScan();
                     this.currentSession = undefined;
                     this.currentThreadId = undefined;
-                    this.provider.clear();
+                    this.provider.setIdle();
                 }
             )
         );
@@ -126,7 +129,7 @@ export class DebugController implements vscode.Disposable {
         }
 
         const revision = this.invalidateScan();
-        this.provider.clear();
+        this.provider.beginScan();
 
         await this.scan(
             session,
@@ -200,17 +203,18 @@ export class DebugController implements vscode.Disposable {
     ): void {
         const revision = this.invalidateScan();
 
-        this.provider.clear();
         state.clear();
 
         if (threadId === undefined) {
             this.currentSession = undefined;
             this.currentThreadId = undefined;
+            this.provider.setIdle();
             return;
         }
 
         this.currentSession = session;
         this.currentThreadId = threadId;
+        this.provider.beginScan();
 
         const configuration = this.configuration;
 
@@ -238,7 +242,7 @@ export class DebugController implements vscode.Disposable {
 
         this.invalidateScan();
         this.currentThreadId = undefined;
-        this.provider.clear();
+        this.provider.setIdle();
     }
 
     private captureVariables(
@@ -287,7 +291,7 @@ export class DebugController implements vscode.Disposable {
             }
         };
 
-        await scanStoppedSession(
+        const result = await scanStoppedSession(
             session,
             threadId,
             sink,
@@ -298,6 +302,19 @@ export class DebugController implements vscode.Disposable {
                 revision
             )
         );
+
+        if (
+            this.isCurrentScan(
+                session,
+                threadId,
+                revision
+            )
+        ) {
+            this.provider.completeScan(
+                result,
+                configuration.scanLimits
+            );
+        }
     }
 
     private isCurrentScan(
