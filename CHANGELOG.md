@@ -2,6 +2,23 @@
 
 All notable changes to Timestamp Debug will be documented in this file.
 
+## 0.5.0 - 2026-09-16
+
+### Added
+
+- Added an `Open Timestamp Debug Settings` view-title action.
+- Added `timestampDebug.scanExpensiveScopes` to optionally skip scopes marked `expensive: true` by the debug adapter.
+
+### Changed
+
+- Recursive DAP branches are requested with bounded concurrency to reduce scan latency while preserving deterministic result order and safety limits.
+- `Partial scan` is now informational only; its tooltip shows the exact setting identifiers and reports expensive scopes skipped by the configured DAP scope policy.
+- The settings action now opens every Timestamp Debug setting instead of filtering to scan-related settings.
+
+### Tests
+
+- Added coverage for expensive-scope parsing, filtering, default compatibility, configuration validation and bounded concurrent traversal.
+
 ## 0.4.0 - 2026-09-16
 
 ### Added

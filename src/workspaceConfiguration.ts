@@ -16,6 +16,7 @@ const SETTING_KEYS = {
     detectionMode: 'detectionMode',
     customFields: 'customFields',
     fieldPatterns: 'fieldPatterns',
+    scanExpensiveScopes: 'scanExpensiveScopes',
     maxScanDepth: 'maxScanDepth',
     maxVariablesPerLevel: 'maxVariablesPerLevel',
     maxTotalVariables: 'maxTotalVariables'
@@ -50,6 +51,9 @@ TimestampDebugConfiguration {
         ),
         fieldPatterns: configuration.get(
             SETTING_KEYS.fieldPatterns
+        ),
+        scanExpensiveScopes: configuration.get(
+            SETTING_KEYS.scanExpensiveScopes
         ),
         maxScanDepth: configuration.get(
             SETTING_KEYS.maxScanDepth

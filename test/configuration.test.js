@@ -19,6 +19,7 @@ test('resolves one safe configuration snapshot from defaults', () => {
             detectionMode: 'safe',
             customFields: [],
             fieldPatterns: [],
+            scanExpensiveScopes: true,
             scanLimits: DEFAULT_SCAN_LIMITS
         }
     );
@@ -34,6 +35,7 @@ test('preserves valid timestamp settings in the snapshot', () => {
             detectionMode: 'aggressive',
             customFields: ['BillingDate'],
             fieldPatterns: ['.*At$'],
+            scanExpensiveScopes: false,
             maxScanDepth: 6,
             maxVariablesPerLevel: 25,
             maxTotalVariables: 250
@@ -46,6 +48,7 @@ test('preserves valid timestamp settings in the snapshot', () => {
             detectionMode: 'aggressive',
             customFields: ['BillingDate'],
             fieldPatterns: ['.*At$'],
+            scanExpensiveScopes: false,
             scanLimits: {
                 maxScanDepth: 6,
                 maxVariablesPerLevel: 25,
@@ -65,6 +68,7 @@ test('normalizes invalid workspace values without leaking them', () => {
             detectionMode: 'invalid',
             customFields: ['CreatedAt', 42, null],
             fieldPatterns: '.*At$',
+            scanExpensiveScopes: 'false',
             maxScanDepth: 0,
             maxVariablesPerLevel: '25',
             maxTotalVariables: Number.NaN
@@ -77,6 +81,7 @@ test('normalizes invalid workspace values without leaking them', () => {
             detectionMode: 'safe',
             customFields: ['CreatedAt'],
             fieldPatterns: [],
+            scanExpensiveScopes: true,
             scanLimits: DEFAULT_SCAN_LIMITS
         }
     );

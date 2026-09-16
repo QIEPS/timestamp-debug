@@ -24,6 +24,7 @@ export type RawTimestampDebugConfiguration = {
     detectionMode?: unknown;
     customFields?: unknown;
     fieldPatterns?: unknown;
+    scanExpensiveScopes?: unknown;
     maxScanDepth?: unknown;
     maxVariablesPerLevel?: unknown;
     maxTotalVariables?: unknown;
@@ -37,6 +38,7 @@ export type TimestampDebugConfiguration = {
     detectionMode: TimestampDetectionMode;
     customFields: string[];
     fieldPatterns: string[];
+    scanExpensiveScopes: boolean;
     scanLimits: ScanLimits;
 };
 
@@ -57,6 +59,10 @@ export function resolveTimestampDebugConfiguration(
         fieldPatterns: resolveStringArray(
             raw.fieldPatterns
         ),
+        scanExpensiveScopes:
+            resolveScanExpensiveScopes(
+                raw.scanExpensiveScopes
+            ),
         scanLimits: resolveScanLimits({
             maxScanDepth: raw.maxScanDepth,
             maxVariablesPerLevel:
@@ -65,6 +71,14 @@ export function resolveTimestampDebugConfiguration(
                 raw.maxTotalVariables
         })
     };
+}
+
+function resolveScanExpensiveScopes(
+    value: unknown
+): boolean {
+    return typeof value === 'boolean'
+        ? value
+        : true;
 }
 
 function resolveTimezone(

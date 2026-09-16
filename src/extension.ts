@@ -7,6 +7,9 @@ import {
     readTimestampDebugConfiguration
 } from './workspaceConfiguration';
 
+const OPEN_SETTINGS_COMMAND =
+    'timestampDebug.openSettings';
+
 export function activate(
     context: vscode.ExtensionContext
 ): void {
@@ -27,6 +30,16 @@ export function activate(
     );
 
     registerCopyCommands(context);
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            OPEN_SETTINGS_COMMAND,
+            () => vscode.commands.executeCommand(
+                'workbench.action.openSettings',
+                '@ext:qieps.timestamp-debug'
+            )
+        )
+    );
 
     const debugController = new DebugController(
         provider,

@@ -14,6 +14,7 @@ export type DapVariable = {
 export type DapScope = {
     name: string;
     variablesReference: number;
+    expensive?: boolean;
 };
 
 export type TimestampTimezone =

@@ -133,6 +133,13 @@ const SCAN_LIMIT_LABELS: Record<DapScanLimit, string> = {
     maxTotalVariables: 'Total variables scanned'
 };
 
+const SCAN_LIMIT_SETTING_IDS: Record<DapScanLimit, string> = {
+    maxScanDepth: 'timestampDebug.maxScanDepth',
+    maxVariablesPerLevel:
+        'timestampDebug.maxVariablesPerLevel',
+    maxTotalVariables: 'timestampDebug.maxTotalVariables'
+};
+
 type SourceVariable = {
     name: string;
     value: string;
@@ -167,6 +174,8 @@ export class TimestampProvider
 
     private scanLimits: ScanLimits | undefined;
 
+    private skippedExpensiveScopes = 0;
+
     constructor(
         private converter: TimestampConverter,
         private displayMode: TimestampDisplayMode
@@ -189,6 +198,8 @@ export class TimestampProvider
         this.cancelScheduledRefresh();
         this.status = 'scanning';
         this.limitsReached = [];
+        this.scanLimits = undefined;
+        this.skippedExpensiveScopes = 0;
         this.resetItems();
         this.emitter.fire();
     }
@@ -204,6 +215,8 @@ export class TimestampProvider
             : 'complete';
         this.limitsReached = result.limitsReached;
         this.scanLimits = scanLimits;
+        this.skippedExpensiveScopes =
+            result.skippedExpensiveScopes;
         this.emitter.fire();
     }
 
@@ -212,6 +225,7 @@ export class TimestampProvider
         this.status = 'idle';
         this.limitsReached = [];
         this.scanLimits = undefined;
+        this.skippedExpensiveScopes = 0;
         this.resetItems();
         this.emitter.fire();
     }
@@ -368,7 +382,10 @@ export class TimestampProvider
         const countLabel = `${count} ` +
             (count === 1 ? 'timestamp' : 'timestamps');
 
-        if (this.limitsReached.length > 0) {
+        if (
+            this.limitsReached.length > 0 ||
+            this.skippedExpensiveScopes > 0
+        ) {
             return createStatusItem(
                 'Partial scan',
                 'info',
@@ -395,7 +412,6 @@ export class TimestampProvider
     }
 
     private createPartialScanTooltip(count: number): string {
-        const multipleLimits = this.limitsReached.length > 1;
         const limitLines = this.limitsReached.map(limit => {
             const value = this.scanLimits?.[limit];
             const formattedValue = value === undefined
@@ -403,8 +419,17 @@ export class TimestampProvider
                 : `: ${value.toLocaleString('en-US')}`;
 
             return `• ${SCAN_LIMIT_LABELS[limit]}` +
-                formattedValue;
+                formattedValue +
+                ` (${SCAN_LIMIT_SETTING_IDS[limit]})`;
         });
+        const expensiveScopeLines =
+            this.skippedExpensiveScopes > 0
+                ? [
+                    '• Expensive scopes skipped: ' +
+                        `${this.skippedExpensiveScopes} ` +
+                        '(timestampDebug.scanExpensiveScopes: false)'
+                ]
+                : [];
         const resultMessage = count === 1
             ? 'The timestamp shown is valid.'
             : count > 1
@@ -412,18 +437,19 @@ export class TimestampProvider
                 : 'No timestamps were found within the scanned variables.';
 
         return [
-            'Some variables were skipped after the scan reached ' +
-                `${multipleLimits ? 'its safety limits' : 'a safety limit'}. ` +
+            'Some variables were skipped because of the configured ' +
+                'scan settings. ' +
                 'This prevents large debugger objects from slowing down VS Code.',
             '',
             resultMessage,
             '',
-            `${multipleLimits ? 'Limits' : 'Limit'} reached:`,
+            'Scan constraints:',
             ...limitLines,
+            ...expensiveScopeLines,
             '',
-            `Increase ${multipleLimits ? 'these limits' : 'this limit'} ` +
-                'in Timestamp Debug settings only if you need a broader scan. ' +
-                'Higher values may slow down debugging.'
+            'Use the settings button in the view title to review ' +
+                'these options. ' +
+                'A broader scan may slow down debugging.'
         ].join('\n');
     }
 }

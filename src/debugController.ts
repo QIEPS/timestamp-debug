@@ -178,7 +178,11 @@ export class DebugController implements vscode.Disposable {
                 const scopes = getScopesResponse(message);
 
                 if (scopes) {
-                    state.captureScopes(scopes);
+                    state.captureScopes(
+                        scopes,
+                        this.configuration
+                            .scanExpensiveScopes
+                    );
                     return;
                 }
 
@@ -296,11 +300,15 @@ export class DebugController implements vscode.Disposable {
             threadId,
             sink,
             configuration.scanLimits,
-            () => this.isCurrentScan(
-                session,
-                threadId,
-                revision
-            )
+            {
+                isActive: () => this.isCurrentScan(
+                    session,
+                    threadId,
+                    revision
+                ),
+                scanExpensiveScopes:
+                    configuration.scanExpensiveScopes
+            }
         );
 
         if (

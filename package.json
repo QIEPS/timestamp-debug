@@ -2,7 +2,7 @@
   "name": "timestamp-debug",
   "displayName": "Timestamp Debug",
   "description": "Inspect Unix and ISO timestamps as readable dates in VS Code debugger variables",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "qieps",
   "license": "MIT",
   "pricing": "Free",
@@ -130,6 +130,11 @@
           "default": [],
           "description": "Regular-expression patterns for debugger field names to treat as timestamps. Invalid patterns are ignored."
         },
+        "timestampDebug.scanExpensiveScopes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scan scopes marked as expensive by the debug adapter. Disable to reduce scan work; timestamps inside skipped scopes will not be shown."
+        },
         "timestampDebug.maxScanDepth": {
           "type": "integer",
           "minimum": 1,
@@ -157,6 +162,11 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "timestampDebug.openSettings",
+        "title": "Open Timestamp Debug Settings",
+        "icon": "$(settings-gear)"
+      },
+      {
         "command": "timestampDebug.copyTimestamp",
         "title": "Copy Timestamp",
         "icon": "$(copy)"
@@ -178,6 +188,11 @@
           "command": "timestampDebug.refresh",
           "when": "view == timestampDebug.variables",
           "group": "navigation"
+        },
+        {
+          "command": "timestampDebug.openSettings",
+          "when": "view == timestampDebug.variables",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [

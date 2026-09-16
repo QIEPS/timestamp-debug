@@ -111,7 +111,8 @@ test('traverses standard DAP references and protects against cycles', async () =
     assert.deepEqual(client.variableRequests, [1, 2, 3]);
     assert.deepEqual(result, {
         failed: false,
-        limitsReached: []
+        limitsReached: [],
+        skippedExpensiveScopes: 0
     });
     assert.deepEqual(paths, [
         'segments',
@@ -122,6 +123,49 @@ test('traverses standard DAP references and protects against cycles', async () =
     ]);
 });
 
+test('optionally skips scopes marked expensive by DAP', async () => {
+    const client = createClient(
+        new Map([
+            [1, [variable('CreatedAt', '1783024209229')]],
+            [9, [variable('UpdatedAt', '1783024209229')]],
+            [10, [variable('EndTime', '1783024209229')]]
+        ]),
+        [
+            {
+                name: 'Locals',
+                variablesReference: 1,
+                expensive: false
+            },
+            {
+                name: 'Global',
+                variablesReference: 9,
+                expensive: true
+            },
+            {
+                name: 'Unspecified',
+                variablesReference: 10
+            }
+        ]
+    );
+    const paths = [];
+
+    const result = await scanDapThread(
+        client,
+        7,
+        { add: path => paths.push(path) },
+        limits,
+        { scanExpensiveScopes: false }
+    );
+
+    assert.deepEqual(client.variableRequests, [1, 10]);
+    assert.deepEqual(paths, ['CreatedAt', 'EndTime']);
+    assert.deepEqual(result, {
+        failed: false,
+        limitsReached: [],
+        skippedExpensiveScopes: 1
+    });
+});
+
 test('scans DAP scopes without relying on language-specific names', async () => {
     const client = createClient(
         new Map([
@@ -130,7 +174,11 @@ test('scans DAP scopes without relying on language-specific names', async () => 
         ]),
         [
             { name: 'Variables', variablesReference: 1 },
-            { name: 'Closure', variablesReference: 9 },
+            {
+                name: 'Closure',
+                variablesReference: 9,
+                expensive: true
+            },
             { name: 'Unavailable', variablesReference: 0 }
         ]
     );
@@ -269,6 +317,94 @@ test('scans shallow siblings before deeper aliases with new references', async (
     assert.ok(
         paths.indexOf('data.CreatedAt') <
         paths.indexOf('cycle.parent.CreatedAt')
+    );
+});
+
+test('bounds concurrent variable requests and preserves result order', async () => {
+    const childCount = 8;
+    const waiting = [];
+    let activeRequests = 0;
+    let maximumActiveRequests = 0;
+    const client = {
+        async request(command, argumentsValue) {
+            if (command === 'stackTrace') {
+                return { stackFrames: [{ id: 100 }] };
+            }
+
+            if (command === 'scopes') {
+                return {
+                    scopes: [{
+                        name: 'Locals',
+                        variablesReference: 1
+                    }]
+                };
+            }
+
+            const reference =
+                argumentsValue.variablesReference;
+
+            if (reference === 1) {
+                return {
+                    variables: Array.from(
+                        { length: childCount },
+                        (_, index) => variable(
+                            `branch${index}`,
+                            'Object',
+                            index + 2
+                        )
+                    )
+                };
+            }
+
+            activeRequests += 1;
+            maximumActiveRequests = Math.max(
+                maximumActiveRequests,
+                activeRequests
+            );
+
+            return new Promise(resolve => {
+                waiting.push(() => {
+                    activeRequests -= 1;
+                    resolve({
+                        variables: [variable(
+                            'CreatedAt',
+                            '1783024209229'
+                        )]
+                    });
+                });
+
+                if (waiting.length === 4) {
+                    queueMicrotask(() => {
+                        for (const release of waiting.splice(0)) {
+                            release();
+                        }
+                    });
+                }
+            });
+        }
+    };
+    const paths = [];
+
+    await scanDapThread(
+        client,
+        7,
+        { add: path => paths.push(path) },
+        limits
+    );
+
+    assert.equal(maximumActiveRequests, 4);
+    assert.deepEqual(
+        paths,
+        [
+            ...Array.from(
+                { length: childCount },
+                (_, index) => `branch${index}`
+            ),
+            ...Array.from(
+                { length: childCount },
+                (_, index) => `branch${index}.CreatedAt`
+            )
+        ]
     );
 });
 
@@ -430,7 +566,7 @@ test('stops without publishing results after cancellation', async () => {
         7,
         { add: path => paths.push(path) },
         limits,
-        () => active
+        { isActive: () => active }
     );
 
     assert.deepEqual(paths, []);

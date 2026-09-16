@@ -5,6 +5,7 @@ import {
 } from './dapTraversal';
 import type {
     DapClient,
+    DapScanOptions,
     DapScanResult,
     TimestampVariableSink
 } from './dapTraversal';
@@ -14,7 +15,7 @@ export async function scanStoppedSession(
     threadId: number,
     sink: TimestampVariableSink,
     limits: ScanLimits,
-    isActive: () => boolean
+    options: DapScanOptions
 ): Promise<DapScanResult> {
     const client: DapClient = {
         request: (command, argumentsValue) =>
@@ -30,7 +31,7 @@ export async function scanStoppedSession(
             threadId,
             sink,
             limits,
-            isActive
+            options
         );
     } catch (error) {
         console.error(
@@ -40,7 +41,8 @@ export async function scanStoppedSession(
 
         return {
             failed: true,
-            limitsReached: []
+            limitsReached: [],
+            skippedExpensiveScopes: 0
         };
     }
 }

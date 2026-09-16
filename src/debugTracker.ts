@@ -51,9 +51,18 @@ export class DebugTrackerState {
         );
     }
 
-    captureScopes(scopes: DapScope[]): void {
+    captureScopes(
+        scopes: DapScope[],
+        scanExpensiveScopes = true
+    ): void {
         for (const scope of scopes) {
-            if (scope.variablesReference > 0) {
+            if (
+                scope.variablesReference > 0 &&
+                (
+                    scanExpensiveScopes ||
+                    scope.expensive !== true
+                )
+            ) {
                 this.paths.set(
                     scope.variablesReference,
                     ''
@@ -84,7 +93,11 @@ export class DebugTrackerState {
 
         const parentPath = this.paths.get(
             request.variablesReference
-        ) ?? '';
+        );
+
+        if (parentPath === undefined) {
+            return [];
+        }
 
         return response.variables.map(variable => {
             const path = joinVariablePath(
@@ -162,7 +175,17 @@ export function getScopesResponse(
             return [];
         }
 
-        return [{ name, variablesReference }];
+        const expensive = typeof scope.expensive === 'boolean'
+            ? scope.expensive
+            : undefined;
+
+        return [{
+            name,
+            variablesReference,
+            ...(expensive === undefined
+                ? {}
+                : { expensive })
+        }];
     });
 }
 

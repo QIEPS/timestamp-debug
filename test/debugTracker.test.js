@@ -40,22 +40,92 @@ test('reads valid scopes and filters malformed scope values', () => {
                 scopes: [
                     {
                         name: 'Locals',
-                        variablesReference: 4
+                        variablesReference: 4,
+                        expensive: false
                     },
                     {
                         name: 42,
                         variablesReference: 5
+                    },
+                    {
+                        name: 'Global',
+                        variablesReference: 6,
+                        expensive: true
                     }
                 ]
             }
         }),
-        [{ name: 'Locals', variablesReference: 4 }]
+        [
+            {
+                name: 'Locals',
+                variablesReference: 4,
+                expensive: false
+            },
+            {
+                name: 'Global',
+                variablesReference: 6,
+                expensive: true
+            }
+        ]
     );
 
     assert.equal(getScopesResponse({
         type: 'response',
         command: 'variables'
     }), undefined);
+});
+
+test('does not track scopes marked expensive when disabled', () => {
+    const state = new DebugTrackerState();
+
+    state.captureScopes([
+        {
+            name: 'Locals',
+            variablesReference: 1,
+            expensive: false
+        },
+        {
+            name: 'Global',
+            variablesReference: 2,
+            expensive: true
+        }
+    ], false);
+
+    state.recordVariablesRequest({
+        sequence: 10,
+        variablesReference: 2
+    }, 3);
+
+    assert.deepEqual(
+        state.consumeVariablesResponse({
+            requestSequence: 10,
+            variables: [variable(
+                'CreatedAt',
+                '1783024209229'
+            )]
+        }, 3),
+        []
+    );
+
+    state.recordVariablesRequest({
+        sequence: 11,
+        variablesReference: 1
+    }, 3);
+
+    assert.deepEqual(
+        state.consumeVariablesResponse({
+            requestSequence: 11,
+            variables: [variable(
+                'UpdatedAt',
+                '1783024209229'
+            )]
+        }, 3),
+        [{
+            path: 'UpdatedAt',
+            name: 'UpdatedAt',
+            value: '1783024209229'
+        }]
+    );
 });
 
 test('correlates typed variables requests and responses', () => {

@@ -31,6 +31,7 @@ timeSegments
 
 - Automatically scans debugger variables when execution stops.
 - Recursively follows nested debugger variables through standard DAP `variablesReference` values and configurable safety limits.
+- Can skip scopes marked as expensive by the debug adapter without relying on language-specific scope names.
 - Detects timestamp fields using built-in rules, exact custom names and regular expressions.
 - Provides Safe and Aggressive detection modes; Safe is the default.
 - Recognizes Unix timestamps in seconds, milliseconds, microseconds and nanoseconds.
@@ -106,7 +107,9 @@ The traversal uses standard Debug Adapter Protocol requests:
 2. `scopes` discovers the variable scopes exposed by the debugger.
 3. `variables` reads each scope and follows every positive `variablesReference` recursively.
 
-Scopes are completed in the order supplied by the debug adapter. Independent root branches are scanned in round-robin order so a wide object, such as a global context, cannot prevent a deeper sibling object from being inspected. Traversal does not use Go, JavaScript, Python or other language-specific type strings to decide whether a variable has children.
+Scopes are completed in the order supplied by the debug adapter. Independent root branches are scanned in round-robin order so a wide object, such as a global context, cannot prevent a deeper sibling object from being inspected. Up to four independent variable requests are sent concurrently, while their results are applied in stable traversal order. Traversal does not use Go, JavaScript, Python or other language-specific type strings to decide whether a variable has children.
+
+By default, all scopes are scanned to preserve existing behavior. Set `timestampDebug.scanExpensiveScopes` to `false` to skip only scopes explicitly marked `expensive: true` by the debug adapter. Whether a scope is marked expensive depends on the adapter; the extension does not infer this from names such as `Global` or `Locals`.
 
 Cycles are protected by visited DAP references and the configured depth, per-level and total-variable limits. Some debug adapters assign a new `variablesReference` to each path leading to the same object. In that case the view may contain multiple valid paths such as `data.CreatedAt` and `cycle.parent.CreatedAt`; the safety limits still guarantee that scanning terminates.
 
@@ -121,6 +124,7 @@ Cycles are protected by visited DAP references and the configured depth, per-lev
 | `timestampDebug.detectionMode` | `safe` | Detection mode: `safe` or `aggressive`. |
 | `timestampDebug.customFields` | `[]` | Additional exact, case-sensitive field names. |
 | `timestampDebug.fieldPatterns` | `[]` | JavaScript regular expressions for field names. |
+| `timestampDebug.scanExpensiveScopes` | `true` | Scan scopes marked as expensive by the debug adapter. |
 | `timestampDebug.maxScanDepth` | `4` | Maximum recursive depth; top-level variables are at depth `0`. |
 | `timestampDebug.maxVariablesPerLevel` | `100` | Maximum variables processed at one level. |
 | `timestampDebug.maxTotalVariables` | `1000` | Maximum variables processed during one scan. |
@@ -141,6 +145,7 @@ Example `settings.json` configuration:
   "timestampDebug.fieldPatterns": [
     ".*Timestamp$"
   ],
+  "timestampDebug.scanExpensiveScopes": true,
   "timestampDebug.maxScanDepth": 4,
   "timestampDebug.maxVariablesPerLevel": 100,
   "timestampDebug.maxTotalVariables": 1000
@@ -182,6 +187,12 @@ European:
 
 All supported setting changes automatically refresh the view while the debugger is stopped.
 
+### Expensive DAP Scopes
+
+When `timestampDebug.scanExpensiveScopes` is `false`, automatic traversal skips scopes that the debug adapter marks as expensive. Timestamps inside those scopes are not shown. Unmarked scopes and scopes marked `expensive: false` are still scanned normally.
+
+Skipped expensive scopes are reported as a `Partial scan`. This option can reduce work for adapters that expose very large scopes, but it has no effect when the adapter does not provide the standard DAP `expensive` flag.
+
 ## Timestamp Variables View
 
 Use the refresh button in the view title to scan the current stopped frame again.
@@ -220,7 +231,7 @@ Tree icons use semantic colors from the active VS Code theme:
 
 The first row reports the current scan state: waiting for a paused debugger, scanning, completed, no timestamps found or failed. Completed scans also show the number of timestamp paths found.
 
-`Partial scan` is an informational state, not an error. It means a configured safety limit stopped traversal before every debugger variable was visited. This is common for large global scopes. Hover over the status to see only the limits that were reached, their configured values, and confirmation that displayed timestamps remain valid.
+`Partial scan` is an informational state, not an error. It means a configured safety limit stopped traversal or scopes marked expensive were intentionally skipped. Hover over the status to see the applicable setting identifiers, current limit values, and confirmation that displayed timestamps remain valid. The status row is informational and has no click action. Use the settings icon in the view title to open all Timestamp Debug settings.
 
 Right-click a timestamp leaf to access:
 

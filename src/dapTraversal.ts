@@ -25,6 +25,13 @@ type PendingVariables = {
     depth: number;
 };
 
+type RequestedVariables = {
+    pending: PendingVariables;
+    variables: DapVariable[];
+};
+
+const MAX_CONCURRENT_VARIABLE_REQUESTS = 4;
+
 export type DapClient = {
     request(
         command: string,
@@ -45,6 +52,12 @@ export type DapScanLimit = keyof ScanLimits;
 export type DapScanResult = {
     failed: boolean;
     limitsReached: DapScanLimit[];
+    skippedExpensiveScopes: number;
+};
+
+export type DapScanOptions = {
+    isActive?: () => boolean;
+    scanExpensiveScopes?: boolean;
 };
 
 export async function scanDapThread(
@@ -52,12 +65,19 @@ export async function scanDapThread(
     threadId: number,
     sink: TimestampVariableSink,
     limits: ScanLimits,
-    isActive: () => boolean = () => true
+    options: DapScanOptions = {}
 ): Promise<DapScanResult> {
     const limitsReached = new Set<DapScanLimit>();
+    const isActive = options.isActive ?? (() => true);
+    const scanExpensiveScopes =
+        options.scanExpensiveScopes ?? true;
 
     if (!isActive()) {
-        return { failed: false, limitsReached: [] };
+        return {
+            failed: false,
+            limitsReached: [],
+            skippedExpensiveScopes: 0
+        };
     }
 
     const stack = await client.request(
@@ -70,13 +90,21 @@ export async function scanDapThread(
     ) as StackTraceResponse;
 
     if (!isActive()) {
-        return { failed: false, limitsReached: [] };
+        return {
+            failed: false,
+            limitsReached: [],
+            skippedExpensiveScopes: 0
+        };
     }
 
     const frame = stack.stackFrames?.[0];
 
     if (!frame) {
-        return { failed: false, limitsReached: [] };
+        return {
+            failed: false,
+            limitsReached: [],
+            skippedExpensiveScopes: 0
+        };
     }
 
     const scopes = await client.request(
@@ -87,13 +115,25 @@ export async function scanDapThread(
     ) as ScopesResponse;
 
     if (!isActive()) {
-        return { failed: false, limitsReached: [] };
+        return {
+            failed: false,
+            limitsReached: [],
+            skippedExpensiveScopes: 0
+        };
     }
 
     const visitedVariablesReferences = new Set<number>();
     const budget = new ScanBudget(limits);
+    const availableScopes = scopes.scopes ?? [];
+    const scopesToScan = scanExpensiveScopes
+        ? availableScopes
+        : availableScopes.filter(
+            scope => scope.expensive !== true
+        );
+    const skippedExpensiveScopes =
+        availableScopes.length - scopesToScan.length;
 
-    for (const scope of scopes.scopes ?? []) {
+    for (const scope of scopesToScan) {
         if (!isActive()) {
             break;
         }
@@ -131,7 +171,8 @@ export async function scanDapThread(
 
     return {
         failed: false,
-        limitsReached: [...limitsReached]
+        limitsReached: [...limitsReached],
+        skippedExpensiveScopes
     };
 }
 
@@ -152,7 +193,19 @@ async function scanBranches(
             return;
         }
 
-        for (let index = 0; index < branches.length;) {
+        const round = branches.flatMap(branch => {
+            const pending = branch.shift();
+
+            return pending
+                ? [{ branch, pending }]
+                : [];
+        });
+
+        for (
+            let offset = 0;
+            offset < round.length;
+            offset += MAX_CONCURRENT_VARIABLE_REQUESTS
+        ) {
             if (!isActive()) {
                 return;
             }
@@ -162,30 +215,52 @@ async function scanBranches(
                 return;
             }
 
-            const branch = branches[index];
-            const pending = branch.shift();
-
-            if (!pending) {
-                branches.splice(index, 1);
-                continue;
-            }
-
-            const children = await scanVariables(
-                client,
-                pending,
-                sink,
-                visitedVariablesReferences,
-                budget,
-                limitsReached,
-                isActive
+            const batch = round.slice(
+                offset,
+                offset + MAX_CONCURRENT_VARIABLE_REQUESTS
+            );
+            const requests = await Promise.all(
+                batch.map(({ pending }) =>
+                    requestVariables(
+                        client,
+                        pending,
+                        visitedVariablesReferences,
+                        budget,
+                        limitsReached,
+                        isActive
+                    )
+                )
             );
 
-            branch.push(...children);
+            for (const [index, request] of requests.entries()) {
+                if (!isActive()) {
+                    return;
+                }
 
-            if (branch.length === 0) {
+                if (!budget.hasRemainingVariables()) {
+                    limitsReached.add('maxTotalVariables');
+                    return;
+                }
+
+                if (!request) {
+                    continue;
+                }
+
+                batch[index].branch.push(
+                    ...processVariables(
+                        request,
+                        sink,
+                        budget,
+                        limitsReached,
+                        isActive
+                    )
+                );
+            }
+        }
+
+        for (let index = branches.length - 1; index >= 0; index--) {
+            if (branches[index].length === 0) {
                 branches.splice(index, 1);
-            } else {
-                index += 1;
             }
         }
     }
@@ -207,14 +282,42 @@ async function scanVariables(
     limitsReached: Set<DapScanLimit>,
     isActive: () => boolean
 ): Promise<PendingVariables[]> {
+    const request = await requestVariables(
+        client,
+        pending,
+        visitedVariablesReferences,
+        budget,
+        limitsReached,
+        isActive
+    );
+
+    return request
+        ? processVariables(
+            request,
+            sink,
+            budget,
+            limitsReached,
+            isActive
+        )
+        : [];
+}
+
+async function requestVariables(
+    client: DapClient,
+    pending: PendingVariables,
+    visitedVariablesReferences: Set<number>,
+    budget: ScanBudget,
+    limitsReached: Set<DapScanLimit>,
+    isActive: () => boolean
+): Promise<RequestedVariables | undefined> {
     if (!budget.canScanDepth(pending.depth)) {
         limitsReached.add('maxScanDepth');
-        return [];
+        return undefined;
     }
 
     if (!budget.hasRemainingVariables()) {
         limitsReached.add('maxTotalVariables');
-        return [];
+        return undefined;
     }
 
     if (
@@ -224,7 +327,7 @@ async function scanVariables(
             pending.variablesReference
         )
     ) {
-        return [];
+        return undefined;
     }
 
     visitedVariablesReferences.add(
@@ -253,15 +356,28 @@ async function scanVariables(
             }
         ) as VariablesResponse;
     } catch {
-        return [];
+        return undefined;
     }
 
     if (!isActive()) {
-        return [];
+        return undefined;
     }
 
+    return {
+        pending,
+        variables: response.variables ?? []
+    };
+}
+
+function processVariables(
+    request: RequestedVariables,
+    sink: TimestampVariableSink,
+    budget: ScanBudget,
+    limitsReached: Set<DapScanLimit>,
+    isActive: () => boolean
+): PendingVariables[] {
+    const { pending, variables: responseVariables } = request;
     const children: PendingVariables[] = [];
-    const responseVariables = response.variables ?? [];
 
     if (
         responseVariables.length >
