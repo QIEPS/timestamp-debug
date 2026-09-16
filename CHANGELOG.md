@@ -2,6 +2,12 @@
 
 All notable changes to Timestamp Debug will be documented in this file.
 
+## 0.5.1 - 2026-09-16
+
+### Changed
+
+- Replaced the extension icon with the new Timestamp Debug artwork.
+
 ## 0.5.0 - 2026-09-16
 
 ### Added

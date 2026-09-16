@@ -2,7 +2,7 @@
   "name": "timestamp-debug",
   "displayName": "Timestamp Debug",
   "description": "Inspect Unix and ISO timestamps as readable dates in VS Code debugger variables",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "publisher": "qieps",
   "license": "MIT",
   "pricing": "Free",
