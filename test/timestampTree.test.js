@@ -45,6 +45,40 @@ test('keeps bracket keys containing dots as one path segment', () => {
     );
 });
 
+test('keeps identical field names in separate branches and preserves insertion order', () => {
+    const roots = buildTimestampTree([
+        timestamp('second.CreatedAt'),
+        timestamp('first.CreatedAt'),
+        timestamp("second['created.at'].Timestamp"),
+        timestamp('second.UpdatedAt')
+    ]);
+
+    assert.deepEqual(roots.map(node => node.label), ['second', 'first']);
+    assert.deepEqual(
+        roots[0].children.map(node => node.label),
+        ['CreatedAt', "['created.at']", 'UpdatedAt']
+    );
+    assert.equal(roots[0].children[0].timestamp.path, 'second.CreatedAt');
+    assert.equal(roots[1].children[0].timestamp.path, 'first.CreatedAt');
+    assert.equal(
+        roots[0].children[1].children[0].path,
+        "second['created.at'].Timestamp"
+    );
+});
+
+test('preserves a timestamp on a parent node when children arrive first', () => {
+    const roots = buildTimestampTree([
+        timestamp('payload.CreatedAt'),
+        timestamp('payload'),
+        timestamp('payload.CreatedAt', '1783024209')
+    ]);
+
+    assert.equal(roots.length, 1);
+    assert.equal(roots[0].timestamp.path, 'payload');
+    assert.equal(roots[0].children.length, 1);
+    assert.equal(roots[0].children[0].timestamp.raw, '1783024209');
+});
+
 test('formats both supported timestamp display modes', () => {
     const item = timestamp('payload.CreatedAt');
 

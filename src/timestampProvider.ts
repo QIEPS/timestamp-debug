@@ -133,13 +133,6 @@ const SCAN_LIMIT_LABELS: Record<DapScanLimit, string> = {
     maxTotalVariables: 'Total variables scanned'
 };
 
-const SCAN_LIMIT_SETTING_IDS: Record<DapScanLimit, string> = {
-    maxScanDepth: 'timestampDebug.maxScanDepth',
-    maxVariablesPerLevel:
-        'timestampDebug.maxVariablesPerLevel',
-    maxTotalVariables: 'timestampDebug.maxTotalVariables'
-};
-
 type SourceVariable = {
     name: string;
     value: string;
@@ -420,7 +413,7 @@ export class TimestampProvider
 
             return `• ${SCAN_LIMIT_LABELS[limit]}` +
                 formattedValue +
-                ` (${SCAN_LIMIT_SETTING_IDS[limit]})`;
+                ` (timestampDebug.${limit})`;
         });
         const expensiveScopeLines =
             this.skippedExpensiveScopes > 0

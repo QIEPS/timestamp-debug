@@ -14,10 +14,9 @@ import {
 import type {
     DapVariablesResponse
 } from './debugTracker';
-import {
-    scanStoppedSession
-} from './debugScanner';
+import { scanDapThread } from './dapTraversal';
 import type {
+    DapScanResult,
     TimestampVariableSink
 } from './dapTraversal';
 import { TimestampConverter } from './timestamp';
@@ -51,13 +50,8 @@ export class DebugController implements vscode.Disposable {
         context.subscriptions.push(
             vscode.commands.registerCommand(
                 'timestampDebug.refresh',
-                async () => {
-                    await this.refresh();
-                }
-            )
-        );
-
-        context.subscriptions.push(
+                () => this.refresh()
+            ),
             vscode.workspace.onDidChangeConfiguration(
                 event => {
                     if (
@@ -82,10 +76,7 @@ export class DebugController implements vscode.Disposable {
 
                     void this.refresh();
                 }
-            )
-        );
-
-        context.subscriptions.push(
+            ),
             vscode.debug.onDidTerminateDebugSession(
                 session => {
                     if (
@@ -100,10 +91,7 @@ export class DebugController implements vscode.Disposable {
                     this.currentThreadId = undefined;
                     this.provider.setIdle();
                 }
-            )
-        );
-
-        context.subscriptions.push(
+            ),
             vscode.debug.registerDebugAdapterTrackerFactory(
                 '*',
                 {
@@ -281,43 +269,45 @@ export class DebugController implements vscode.Disposable {
         revision: number,
         configuration: TimestampDebugConfiguration
     ): Promise<void> {
+        const isActive = (): boolean => this.isCurrentScan(
+            session,
+            threadId,
+            revision
+        );
         const sink: TimestampVariableSink = {
             add: (path, name, value) => {
-                if (
-                    this.isCurrentScan(
-                        session,
-                        threadId,
-                        revision
-                    )
-                ) {
+                if (isActive()) {
                     this.provider.add(path, name, value);
                 }
             }
         };
 
-        const result = await scanStoppedSession(
-            session,
-            threadId,
-            sink,
-            configuration.scanLimits,
-            {
-                isActive: () => this.isCurrentScan(
-                    session,
-                    threadId,
-                    revision
-                ),
-                scanExpensiveScopes:
-                    configuration.scanExpensiveScopes
-            }
-        );
+        let result: DapScanResult;
 
-        if (
-            this.isCurrentScan(
-                session,
+        try {
+            result = await scanDapThread(
+                {
+                    request: (command, argumentsValue) =>
+                        session.customRequest(command, argumentsValue)
+                },
                 threadId,
-                revision
-            )
-        ) {
+                sink,
+                configuration.scanLimits,
+                {
+                    isActive,
+                    scanExpensiveScopes: configuration.scanExpensiveScopes
+                }
+            );
+        } catch (error) {
+            console.error('[Timestamp Debug] Scan error:', error);
+            result = {
+                failed: true,
+                limitsReached: [],
+                skippedExpensiveScopes: 0
+            };
+        }
+
+        if (isActive()) {
             this.provider.completeScan(
                 result,
                 configuration.scanLimits

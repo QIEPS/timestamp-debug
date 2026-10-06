@@ -47,9 +47,10 @@ export function resolveTimestampDebugConfiguration(
 ): TimestampDebugConfiguration {
     return {
         timezone: resolveTimezone(raw.timezone),
-        fixedOffset: resolveFixedOffset(raw.fixedOffset),
-        dateFormat: resolveDateFormat(raw.dateFormat),
-        displayMode: resolveDisplayMode(raw.displayMode),
+        fixedOffset: parseFixedOffset(raw.fixedOffset)?.label ??
+            DEFAULT_FIXED_OFFSET,
+        dateFormat: raw.dateFormat === 'european' ? 'european' : 'iso',
+        displayMode: raw.displayMode === 'date' ? 'date' : 'timestampAndDate',
         detectionMode: resolveDetectionMode(
             raw.detectionMode
         ),
@@ -59,26 +60,11 @@ export function resolveTimestampDebugConfiguration(
         fieldPatterns: resolveStringArray(
             raw.fieldPatterns
         ),
-        scanExpensiveScopes:
-            resolveScanExpensiveScopes(
-                raw.scanExpensiveScopes
-            ),
-        scanLimits: resolveScanLimits({
-            maxScanDepth: raw.maxScanDepth,
-            maxVariablesPerLevel:
-                raw.maxVariablesPerLevel,
-            maxTotalVariables:
-                raw.maxTotalVariables
-        })
+        scanExpensiveScopes: typeof raw.scanExpensiveScopes === 'boolean'
+            ? raw.scanExpensiveScopes
+            : true,
+        scanLimits: resolveScanLimits(raw)
     };
-}
-
-function resolveScanExpensiveScopes(
-    value: unknown
-): boolean {
-    return typeof value === 'boolean'
-        ? value
-        : true;
 }
 
 function resolveTimezone(
@@ -89,31 +75,6 @@ function resolveTimezone(
     }
 
     return 'utc';
-}
-
-function resolveFixedOffset(value: unknown): string {
-    if (typeof value !== 'string') {
-        return DEFAULT_FIXED_OFFSET;
-    }
-
-    return parseFixedOffset(value)?.label ??
-        DEFAULT_FIXED_OFFSET;
-}
-
-function resolveDateFormat(
-    value: unknown
-): TimestampDateFormat {
-    return value === 'european'
-        ? 'european'
-        : 'iso';
-}
-
-function resolveDisplayMode(
-    value: unknown
-): TimestampDisplayMode {
-    return value === 'date'
-        ? 'date'
-        : 'timestampAndDate';
 }
 
 function resolveStringArray(value: unknown): string[] {

@@ -57,14 +57,7 @@ export class TimestampConverter {
             raw: parsed.raw,
             date: formatTimestampDate(
                 parsed.date,
-                {
-                    timezone:
-                        this.configuration.timezone,
-                    dateFormat:
-                        this.configuration.dateFormat,
-                    fixedOffset:
-                        this.configuration.fixedOffset
-                }
+                this.configuration
             )
         };
     }

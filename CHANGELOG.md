@@ -2,6 +2,20 @@
 
 All notable changes to Timestamp Debug will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- Simplified DAP traversal state and branch scheduling while preserving request order, bounded concurrency, cancellation and scan limits.
+- Removed the separate VS Code scan wrapper and kept adapter calls and scan error handling in the debug controller.
+- Reused one setting list for workspace configuration reads and change detection.
+- Built timestamp tree nodes directly without an intermediate tree and recursive copying.
+
+### Tests
+
+- Added regression coverage for concurrent scan budgets, shared references, cancellation, tree insertion order and timestamps on parent nodes.
+- Strengthened the concurrent traversal test with responses completing in reverse order.
+
 ## 0.5.1 - 2026-09-16
 
 ### Changed

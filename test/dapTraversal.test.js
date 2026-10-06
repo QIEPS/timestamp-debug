@@ -375,7 +375,7 @@ test('bounds concurrent variable requests and preserves result order', async () 
 
                 if (waiting.length === 4) {
                     queueMicrotask(() => {
-                        for (const release of waiting.splice(0)) {
+                        for (const release of waiting.splice(0).reverse()) {
                             release();
                         }
                     });
@@ -406,6 +406,89 @@ test('bounds concurrent variable requests and preserves result order', async () 
             )
         ]
     );
+});
+
+test('applies the total budget in branch order across concurrent responses', async () => {
+    const client = createClient(new Map([
+        [1, [
+            variable('first', 'Object', 2),
+            variable('second', 'Object', 3),
+            variable('third', 'Object', 4)
+        ]],
+        [2, [
+            variable('CreatedAt', '1783024209229'),
+            variable('UpdatedAt', '1783024209229')
+        ]],
+        [3, [variable('EndTime', '1783024209229')]],
+        [4, [variable('StartTime', '1783024209229')]]
+    ]));
+    const paths = [];
+
+    const result = await scanDapThread(
+        client,
+        7,
+        { add: path => paths.push(path) },
+        { ...limits, maxTotalVariables: 4 }
+    );
+
+    assert.deepEqual(client.variableRequests, [1, 2, 3, 4]);
+    assert.deepEqual(paths, [
+        'first', 'second', 'third', 'first.CreatedAt'
+    ]);
+    assert.deepEqual(result.limitsReached, ['maxTotalVariables']);
+});
+
+test('requests a shared reference only once across concurrent branches', async () => {
+    const client = createClient(new Map([
+        [1, [
+            variable('first', 'Object', 2),
+            variable('alias', 'Object', 2),
+            variable('other', 'Object', 3)
+        ]],
+        [2, [variable('CreatedAt', '1783024209229')]],
+        [3, [variable('UpdatedAt', '1783024209229')]]
+    ]));
+    const paths = [];
+
+    await scanDapThread(client, 7, { add: path => paths.push(path) }, limits);
+
+    assert.deepEqual(client.variableRequests, [1, 2, 3]);
+    assert.deepEqual(paths, [
+        'first', 'alias', 'other',
+        'first.CreatedAt', 'other.UpdatedAt'
+    ]);
+});
+
+test('discards concurrent responses after cancellation', async () => {
+    const client = createClient(new Map([
+        [1, [
+            variable('first', 'Object', 2),
+            variable('second', 'Object', 3)
+        ]],
+        [2, [variable('CreatedAt', '1783024209229')]],
+        [3, [variable('UpdatedAt', '1783024209229')]]
+    ]));
+    const request = client.request.bind(client);
+    const paths = [];
+    let active = true;
+
+    client.request = async (command, argumentsValue) => {
+        const response = await request(command, argumentsValue);
+
+        if (command === 'variables' && argumentsValue.variablesReference > 1) {
+            active = false;
+        }
+
+        return response;
+    };
+
+    await scanDapThread(
+        client, 7, { add: path => paths.push(path) }, limits,
+        { isActive: () => active }
+    );
+
+    assert.deepEqual(client.variableRequests, [1, 2, 3]);
+    assert.deepEqual(paths, ['first', 'second']);
 });
 
 test('gives a deep branch time before a wide sibling exhausts the budget', async () => {

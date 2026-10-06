@@ -259,6 +259,8 @@ npm run compile
 npm test
 ```
 
+The debugger traversal core lives in `src/dapTraversal.ts`. `src/debugController.ts` connects it to VS Code and manages scan cancellation and errors. Timestamp detection, parsing, formatting and tree construction are independent of VS Code and covered by unit tests, including concurrent traversal and safety limits.
+
 ## Links
 
 - [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=qieps.timestamp-debug)

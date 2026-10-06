@@ -10,20 +10,11 @@ export type TimestampTreeNode = {
     children: TimestampTreeNode[];
 };
 
-type MutableTimestampTreeNode = {
-    label: string;
-    path: string;
-    timestamp?: TimestampItem;
-    children: Map<string, MutableTimestampTreeNode>;
-};
-
 export function buildTimestampTree(
     items: Iterable<TimestampItem>
 ): TimestampTreeNode[] {
-    const roots = new Map<
-        string,
-        MutableTimestampTreeNode
-    >();
+    const roots: TimestampTreeNode[] = [];
+    const nodes = new Map<string, TimestampTreeNode>();
 
     for (const item of items) {
         const segments = splitVariablePath(item.path);
@@ -36,15 +27,16 @@ export function buildTimestampTree(
                 segment
             );
 
-            let node = children.get(segment);
+            let node = nodes.get(currentPath);
 
             if (!node) {
                 node = {
                     label: segment,
                     path: currentPath,
-                    children: new Map()
+                    children: []
                 };
-                children.set(segment, node);
+                nodes.set(currentPath, node);
+                children.push(node);
             }
 
             if (index === segments.length - 1) {
@@ -55,7 +47,7 @@ export function buildTimestampTree(
         }
     }
 
-    return [...roots.values()].map(finalizeNode);
+    return roots;
 }
 
 export function splitVariablePath(path: string): string[] {
@@ -143,19 +135,4 @@ function appendPathSegment(
     return segment.startsWith('[')
         ? `${parent}${segment}`
         : `${parent}.${segment}`;
-}
-
-function finalizeNode(
-    node: MutableTimestampTreeNode
-): TimestampTreeNode {
-    return {
-        label: node.label,
-        path: node.path,
-        ...(node.timestamp
-            ? { timestamp: node.timestamp }
-            : {}),
-        children: [...node.children.values()].map(
-            finalizeNode
-        )
-    };
 }
